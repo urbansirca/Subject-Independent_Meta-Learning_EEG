@@ -1,0 +1,19 @@
+# Core Deep Learning Framework
+torch>=1.7.0
+torchvision>=0.8.0
+
+# Scientific Computing and Data Processing
+numpy>=1.19.0
+scipy>=1.5.0
+pandas>=1.1.0
+scikit-learn>=0.24.0
+
+# EEG Signal Processing
+mne>=0.20.0
+h5py>=3.0.0
+
+# Data Visualization
+matplotlib>=3.3.0
+
+# Note: motor_braindecode and speech_braindecode are local packages
+# They should be installed in development mode or added to PYTHONPATH
