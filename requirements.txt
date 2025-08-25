@@ -41,6 +41,8 @@ torchvision==0.14.1
 tqdm==4.64.1
 typing_extensions==4.4.0
 urllib3==1.26.14
+tensorboardX
+tensorboard
 
 # then run pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
 

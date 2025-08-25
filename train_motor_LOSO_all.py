@@ -30,6 +30,7 @@ from motor_braindecode.datautil.signal_target import SignalAndTarget
 # from braindecode.models.deep4 import Deep4Net
 from motor_braindecode.torch_ext.optimizers import AdamW
 from motor_braindecode.torch_ext.util import set_random_seeds
+from motor_braindecode.experiments.loggers import TensorboardWriter
 from sklearn.model_selection import KFold
 from torch import nn
 
@@ -115,6 +116,11 @@ for fold in range(0,54):
         n_classes = 2
         in_chans = train_set.X.shape[1]
 
+        # Create TensorBoard logger for this fold and CV
+        tensorboard_dir = pjoin(outpath, 'tensorboard_logs', f'fold_{fold}', f'cv_{cv_index}')
+        os.makedirs(tensorboard_dir, exist_ok=True)
+        tensorboard_logger = TensorboardWriter(tensorboard_dir)
+
         # final_conv_length = auto ensures we only get a single output in the time dimension
         model = Deep5Net(in_chans=in_chans, n_classes=n_classes,
                         input_time_length=train_set.X.shape[2],
@@ -126,6 +132,10 @@ for fold in range(0,54):
         # Fit the base model for transfer learning, use early stopping as a hack to remember the model
         exp = model.fit(train_set.X, train_set.y, epochs=TRAIN_EPOCH, batch_size=BATCH_SIZE, scheduler='cosine',
                         validation_data=(valid_set.X, valid_set.y), remember_best_column='valid_loss', meta=meta)
+
+        # Log training progress to TensorBoard
+        if hasattr(exp, 'epochs_df') and exp.epochs_df is not None:
+            tensorboard_logger.log_epoch(exp.epochs_df)
 
         rememberer = exp.rememberer
         base_model_param = {

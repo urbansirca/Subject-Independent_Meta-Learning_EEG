@@ -20,7 +20,7 @@ class Printer(Logger):
         i_epoch = len(epochs_df) - 1
         log.info("Epoch {:d}".format(i_epoch))
         last_row = epochs_df.iloc[-1]
-        for key, val in last_row.iteritems():
+        for key, val in last_row.items():
             log.info("{:25s} {:.5f}".format(key, val))
         log.info("")
 
@@ -46,6 +46,6 @@ class TensorboardWriter(Logger):
         # -1 due to doing one monitor at start of training
         i_epoch = len(epochs_df) - 1
         last_row = epochs_df.iloc[-1]
-        for key, val in last_row.iteritems():
+        for key, val in last_row.items():
             val = last_row[key]
             self.writer.add_scalar(key, val, i_epoch)
