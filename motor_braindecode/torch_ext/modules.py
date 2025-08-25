@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from braindecode.torch_ext.util import np_to_var
+from motor_braindecode.torch_ext.util import np_to_var
 
 
 class Expression(torch.nn.Module):

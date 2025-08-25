@@ -2,8 +2,8 @@ import logging
 
 import numpy as np
 
-from braindecode.datautil.iterators import get_balanced_batches
-from braindecode.util import wrap_reshape_apply_fn, corr
+from motor_braindecode.datautil.iterators import get_balanced_batches
+from motor_braindecode.util import wrap_reshape_apply_fn, corr
 
 log = logging.getLogger(__name__)
 

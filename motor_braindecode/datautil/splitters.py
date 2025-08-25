@@ -1,7 +1,7 @@
 import numpy as np
 
-from braindecode.datautil.iterators import get_balanced_batches
-from braindecode.datautil.signal_target import apply_to_X_y, SignalAndTarget
+from motor_braindecode.datautil.iterators import get_balanced_batches
+from motor_braindecode.datautil.signal_target import apply_to_X_y, SignalAndTarget
 
 
 def concatenate_sets(sets):

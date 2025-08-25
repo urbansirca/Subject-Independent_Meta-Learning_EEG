@@ -4,8 +4,8 @@ from copy import deepcopy
 
 import numpy as np
 
-from braindecode.datautil.signal_target import SignalAndTarget
-from braindecode.datautil.util import ms_to_samples
+from motor_braindecode.datautil.signal_target import SignalAndTarget
+from motor_braindecode.datautil.util import ms_to_samples
 
 log = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ import numpy as np
 from numpy.random import RandomState
 import torch as th
 
-from braindecode.experiments.monitors import (
+from motor_braindecode.experiments.monitors import (
     LossMonitor,
     MisclassMonitor,
     RuntimeMonitor,
@@ -13,16 +13,16 @@ from braindecode.experiments.monitors import (
     compute_pred_labels_from_trial_preds,
     compute_preds_per_trial_from_crops,
 )
-from braindecode.experiments.stopcriteria import MaxEpochs
-from braindecode.datautil.iterators import (
+from motor_braindecode.experiments.stopcriteria import MaxEpochs
+from motor_braindecode.datautil.iterators import (
     BalancedBatchSizeIterator,
     CropsFromTrialsIterator,
 )
-from braindecode.experiments.experiment import Experiment
-from braindecode.datautil.signal_target import SignalAndTarget
-from braindecode.models.util import to_dense_prediction_model
-from braindecode.torch_ext.schedulers import CosineAnnealing, ScheduledOptimizer
-from braindecode.torch_ext.util import np_to_var, var_to_np
+from motor_braindecode.experiments.experiment import Experiment
+from motor_braindecode.datautil.signal_target import SignalAndTarget
+from motor_braindecode.models.util import to_dense_prediction_model
+from motor_braindecode.torch_ext.schedulers import CosineAnnealing, ScheduledOptimizer
+from motor_braindecode.torch_ext.util import np_to_var, var_to_np
 import logging
 
 log = logging.getLogger(__name__)

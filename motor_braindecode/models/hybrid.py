@@ -2,10 +2,10 @@ import torch as th
 from torch import nn
 from torch.nn import ConstantPad2d
 
-from braindecode.models.base import BaseModel
-from braindecode.models.deep4 import Deep4Net
-from braindecode.models.shallow_fbcsp import ShallowFBCSPNet
-from braindecode.models.util import to_dense_prediction_model
+from motor_braindecode.models.base import BaseModel
+from motor_braindecode.models.deep4 import Deep4Net
+from motor_braindecode.models.shallow_fbcsp import ShallowFBCSPNet
+from motor_braindecode.models.util import to_dense_prediction_model
 
 
 class HybridNet(BaseModel):

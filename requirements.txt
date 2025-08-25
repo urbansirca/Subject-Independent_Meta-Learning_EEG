@@ -1,7 +1,11 @@
-# make a venv with python 3.10
+# make a conda venv with python 3.10
+# conda create -n eeg python=3.10
+# conda activate eeg
+# conda install pip
+# pip install -r requirements.txt
 
 appdirs==1.4.4
-Braindecode==0.4.85
+# Braindecode==0.4.85
 certifi==2022.12.7
 charset-normalizer==2.1.1
 contourpy==1.0.6
@@ -37,3 +41,7 @@ torchvision==0.14.1
 tqdm==4.64.1
 typing_extensions==4.4.0
 urllib3==1.26.14
+
+# then run pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 --extra-index-url https://download.pytorch.org/whl/cu117
+
+#  CHECK: python -c "import torch; print(torch.version.cuda); print(torch.cuda.is_available())"

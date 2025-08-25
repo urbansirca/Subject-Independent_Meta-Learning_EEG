@@ -4,7 +4,7 @@ from functools import partial
 import torch as th
 import numpy as np
 
-from braindecode.datautil.iterators import (
+from motor_braindecode.datautil.iterators import (
     _compute_start_stop_block_inds,
     get_balanced_batches,
 )

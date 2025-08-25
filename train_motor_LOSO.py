@@ -53,6 +53,7 @@ datapath = args.datapath
 outpath = args.outpath
 fold = args.fold
 meta = args.meta
+print('Meta:', meta)
 dfile = h5py.File(datapath, 'r')
 torch.cuda.set_device(args.gpu)
 torch.manual_seed(0)
@@ -60,6 +61,8 @@ torch.cuda.manual_seed_all(0)
 np.random.seed(0)
 torch.backends.cudnn.deterministic = True
 set_random_seeds(seed=20200205, cuda=True)
+print('Fold:', fold)
+print('cuda:', torch.cuda.current_device())
 BATCH_SIZE = 16
 TRAIN_EPOCH = 200
 

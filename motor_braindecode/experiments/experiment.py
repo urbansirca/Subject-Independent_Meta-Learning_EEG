@@ -7,12 +7,12 @@ import pandas as pd
 import torch as th
 import numpy as np
 
-from braindecode.datautil.splitters import concatenate_sets
-from braindecode.experiments.loggers import Printer
-from braindecode.experiments.stopcriteria import MaxEpochs, ColumnBelow, Or
-from braindecode.torch_ext.util import np_to_var
+from motor_braindecode.datautil.splitters import concatenate_sets
+from motor_braindecode.experiments.loggers import Printer
+from motor_braindecode.experiments.stopcriteria import MaxEpochs, ColumnBelow, Or
+from motor_braindecode.torch_ext.util import np_to_var
 
-from braindecode.torch_ext.optimizers import AdamW
+from motor_braindecode.torch_ext.optimizers import AdamW
 import torch.nn.functional as F
 
 log = logging.getLogger(__name__)

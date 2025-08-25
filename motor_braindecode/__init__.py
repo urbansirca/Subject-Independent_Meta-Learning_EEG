@@ -1,1 +1,1 @@
-from braindecode.version import __version__
+from motor_braindecode.version import __version__
