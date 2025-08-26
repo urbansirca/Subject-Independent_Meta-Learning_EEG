@@ -32,9 +32,9 @@ def get_data(sess, subj):
     raw = loadmat(filepath)
     # Obtain input, convert (time, epoch, chan) into (epoch, chan, time)
     X1 = np.moveaxis(raw['EEG_MI_train']['smt'][0][0], 0, -1)
-    X1 = decimate(X1, 4)
+    X1 = decimate(X1, 4) # downsample by 4 (1000 -> 250)
     X2 = np.moveaxis(raw['EEG_MI_test']['smt'][0][0], 0, -1)
-    X2 = decimate(X2, 4)
+    X2 = decimate(X2, 4) # downsample by 4 (1000 -> 250)
     X = np.concatenate((X1, X2), axis=0)
     # Obtain target: 0 -> right, 1 -> left
     Y1 = (raw['EEG_MI_train']['y_dec'][0][0][0] - 1)
@@ -48,7 +48,7 @@ with h5py.File(pjoin(out, 'KU_mi_smt.h5'), 'w') as f:
         X1, Y1 = get_data(1, subj)
         X2, Y2 = get_data(2, subj)
         X = np.concatenate((X1, X2), axis=0)
-        X = X.astype(np.float32)
+        X = X.astype(np.float32) # convert to float32 for memory efficiency and compatibility with PyTorch
         Y = np.concatenate((Y1, Y2), axis=0)
         Y = Y.astype(np.int64)
         f.create_dataset('s' + str(subj) + '/X', data=X)

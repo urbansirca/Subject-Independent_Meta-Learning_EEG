@@ -84,6 +84,14 @@ def get_data(subj):
     return X, Y
 
 def get_multi_data(subjs):
+    """
+    Get data from multiple subjects. Put all data into a single array.
+    Args:
+        subjs: list of subject numbers
+    Returns:
+        X: numpy array of shape (n_samples, n_channels, n_times) [21200, 62, 1000]
+        Y: numpy array of shape (n_samples,)
+    """
     Xs = []
     Ys = []
     for s in subjs:

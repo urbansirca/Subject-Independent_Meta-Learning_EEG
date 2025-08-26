@@ -16,6 +16,7 @@ from motor_braindecode.torch_ext.optimizers import AdamW
 import torch.nn.functional as F
 
 log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
 
 
 class RememberBest(object):
@@ -162,9 +163,9 @@ class Experiment(object):
     def __init__(
         self,
         model,
-        train_set,
-        valid_set,
-        test_set,
+        train_set, # object of type SignalAndTarget
+        valid_set, # object of type SignalAndTarget
+        test_set, # object of type SignalAndTarget
         iterator,
         loss_function,
         optimizer,
@@ -229,17 +230,17 @@ class Experiment(object):
         Run complete training.
         """
         self.setup_training()
-        log.info("Run until first stop...")
+        log.info("Run until first stop...") # train on training set until stop criterion is fulfilled
         self.run_until_first_stop()
         if self.do_early_stop:
             # always setup for second stop, in order to get best model
             # even if not running after early stop...
             log.info("Setup for second stop...")
-            self.setup_after_stop_training()
+            self.setup_after_stop_training() # reset to best model and update stop criterion
         if self.run_after_early_stop:
             log.info("Run until second stop...")
             loss_to_reach = float(self.epochs_df["train_loss"].iloc[-1])
-            self.run_until_second_stop()
+            self.run_until_second_stop() # combines training and validation sets
             if (
                 float(self.epochs_df["valid_loss"].iloc[-1]) > loss_to_reach
             ) and self.reset_after_second_run:
@@ -340,7 +341,7 @@ class Experiment(object):
             if len(inputs) > 0:
                 self.train_batch(inputs, targets)
         if self.meta == True:
-            print("DOING META")
+            log.debug("DOING META")
             self.meta_loss(datasets)
         end_train_epoch_time = time.time()
         log.info(
@@ -364,7 +365,11 @@ class Experiment(object):
         # for inputs, targets in batch_generator:
         #     print(inputs.shape)
 
-        for i in range(0,int(len(self.valid_set_meta.X)/400)):
+        # ACCUMULATE LOSS OVER ALL BATCHES (training on inner support set and evaluating on outer query set)
+        # VALIDATION SET IS NOT SHUFFLED - hence, it will always see the same support-query trials #TODO: check if this is correct
+        for i in range(0,int(len(self.valid_set_meta.X)/400)): # 400 samples per batch (because each subject has 400 samples)
+            log.debug(f"Training on inner support set {i}/{int(len(self.valid_set_meta.X)/400)}") #TODO: understand why meta loop only happens on validation set
+            # TRAIN ON SMALL INNER SUPPORT SET (5 samples per batch) --> first 5 samples of each batch
             inputs = self.valid_set_meta.X[i*400:i*400 + 5]
             targets =self.valid_set_meta.y[i*400:i*400 + 5]
             inputs = inputs[:,:,:,np.newaxis]
@@ -380,12 +385,14 @@ class Experiment(object):
             loss = self.loss_function(outputs, target_vars)
             if self.model_loss_function is not None:
                 loss = loss + self.model_loss_function(self.model)
-            loss.backward()
+            loss.backward() #TODO: understand why its called twice. once here and again at the end. shouldnt we accumulate loss over all batches first?
             self.optimizer.step()
 
+            # EVAL ON LARGE OUTER QUERY SET (100 samples per batch)
+            log.debug(f"Evaluating on outer query set {i}/{int(len(self.valid_set_meta.X)/400)}")
             self.model.eval()
-            inputs = self.valid_set_meta.X[i*400 + 300:(i+1)*400]
-            targets =self.valid_set_meta.y[i*400 + 300:(i+1)*400]
+            inputs = self.valid_set_meta.X[i*400 + 300:(i+1)*400] # last 100 samples per batch --> large outer QUERY SET
+            targets =self.valid_set_meta.y[i*400 + 300:(i+1)*400] # last100 samples per batch --> large outer QUERY SET
             inputs = inputs[:,:,:,np.newaxis]
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
@@ -397,7 +404,7 @@ class Experiment(object):
             if self.model_loss_function is not None:
                 meta_loss = meta_loss + self.model_loss_function(self.model)
 
-            overall_loss += meta_loss
+            overall_loss += meta_loss # kept as a TENSOR (no loss.item())
 
         # Meta-Learning Loss
         # batch_generator = self.iterator.get_batches(
@@ -451,6 +458,7 @@ class Experiment(object):
         inputs: `torch.autograd.Variable`
         targets: `torch.autograd.Variable`
         """
+        # TODO: add tracking of Normal training loss
         self.model.train()
         # print(inputs.shape)
         input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
