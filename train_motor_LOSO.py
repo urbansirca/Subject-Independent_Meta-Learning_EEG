@@ -47,8 +47,8 @@ parser.add_argument('outpath', type=str, help='Path to the result folder')
 parser.add_argument('-gpu', type=int, help='The gpu device to use', default=0)
 parser.add_argument('-fold', type=int,
                     help='Target fold to compute baseline models', required=True)
-parser.add_argument("batch_size", type=int, help="Batch size", default=16)
-parser.add_argument("train_epoch", type=int, help="Training epochs", default=100)
+parser.add_argument("--batch_size", type=int, help="Batch size", default=16)
+parser.add_argument("--train_epoch", type=int, help="Training epochs", default=100)
 
 args = parser.parse_args()
 datapath = args.datapath
