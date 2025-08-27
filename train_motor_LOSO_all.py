@@ -65,8 +65,8 @@ set_random_seeds(seed=20200205, cuda=True)
 print('cuda:', torch.cuda.current_device())
 BATCH_SIZE = args.batch_size
 TRAIN_EPOCH = args.train_epoch
-LR = 4 * 1e-3
-META_LR = 4 * 1e-3
+LR = 2 * 1e-3
+META_LR = 2 * 1e-3
 
 # Randomly shuffled subject.
 subjs = [35, 47, 46, 37, 13, 27, 12, 32, 53, 54, 4, 40, 19, 41, 18, 42, 34, 7,
