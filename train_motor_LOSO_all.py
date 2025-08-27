@@ -46,15 +46,13 @@ parser.add_argument('--meta',default=False, help='Training Mode', action='store_
 parser.add_argument('datapath', type=str, help='Path to the h5 data file')
 parser.add_argument('outpath', type=str, help='Path to the result folder')
 parser.add_argument('-gpu', type=int, help='The gpu device to use', default=0)
-parser.add_argument('-fold', type=int,
-                    help='Target fold to compute baseline models', required=True)
+
 parser.add_argument("--batch_size", type=int, help="Batch size", default=16)
 parser.add_argument("--train_epoch", type=int, help="Training epochs", default=100)
 
 args = parser.parse_args()
 datapath = args.datapath
 outpath = args.outpath
-fold = args.fold
 meta = args.meta
 print('Meta:', meta)
 dfile = h5py.File(datapath, 'r')
@@ -64,7 +62,6 @@ torch.cuda.manual_seed_all(0)
 np.random.seed(0)
 torch.backends.cudnn.deterministic = True
 set_random_seeds(seed=20200205, cuda=True)
-print('Fold:', fold)
 print('cuda:', torch.cuda.current_device())
 BATCH_SIZE = args.batch_size
 TRAIN_EPOCH = args.train_epoch
@@ -94,7 +91,7 @@ def get_multi_data(subjs):
     Y = np.concatenate(Ys, axis=0)
     return X, Y
 
-for fold in range(0,5):
+for fold in range(0,5): # TODO: Change to 54
     torch.cuda.set_device(args.gpu)
     torch.manual_seed(0)
     torch.cuda.manual_seed_all(0)
