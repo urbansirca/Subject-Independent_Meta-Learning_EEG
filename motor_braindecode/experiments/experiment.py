@@ -224,6 +224,12 @@ class Experiment(object):
         self.loggers = loggers
         self.meta = meta
 
+        self.n_tasks_per_meta_batch = 8 
+        self.n_meta_batches_per_epoch =  max(1, 54 // self.n_tasks_per_meta_batch)
+        self.inner_steps = 1
+        self.inner_lr = 1e-3
+        self.task_source = "train"    
+
     def run(self):
         """
         Run complete training.
@@ -329,19 +335,31 @@ class Experiment(object):
         remember_best: bool
             Whether to remember parameters if this epoch is best epoch.
         """
-        batch_generator = self.iterator.get_batches(
+        
+        start_train_epoch_time = time.time()
+        if self.meta:
+            logs = []
+            # run only meta episodes this epoch
+            for _ in range(self.n_meta_batches_per_epoch):
+                stats = self.meta_fomaml_step()
+                logs.append(stats)
+            if logs:
+                mq = np.mean([d["meta_query_loss"] for d in logs])
+                ms = np.mean([d["meta_support_loss"] for d in logs])
+                log.info(f"[FOMAML] meta_query_loss={mq:.4f} | meta_support_loss={ms:.4f}")
+        else:
+            batch_generator = self.iterator.get_batches(
             datasets["train"], shuffle=True
         )
-        start_train_epoch_time = time.time()
-        for inputs, targets in batch_generator:
-            if self.batch_modifier is not None:
-                inputs, targets = self.batch_modifier.process(inputs, targets)
-            # could happen that batch modifier has removed all inputs...
-            if len(inputs) > 0:
-                self.train_batch(inputs, targets)
-        if self.meta == True:
-            print("DOING META")
-            self.meta_loss(datasets)
+            for inputs, targets in batch_generator:
+                if self.batch_modifier is not None:
+                    inputs, targets = self.batch_modifier.process(inputs, targets)
+                # could happen that batch modifier has removed all inputs...
+                if len(inputs) > 0:
+                    self.train_batch(inputs, targets)
+                # if self.meta == True:
+                #     print("DOING META")
+                #     self.meta_loss(datasets)
         end_train_epoch_time = time.time()
         log.info(
             "Time only for training updates: {:.2f}s".format(
@@ -355,6 +373,119 @@ class Experiment(object):
             self.rememberer.remember_epoch(
                 self.epochs_df, self.model, self.optimizer
             )
+
+    def meta_fomaml_step(self):
+        """
+        Minimal FOMAML step with debug logging.
+        Assumes: 400 trials per subject, 5 support, 100 query.
+        """
+
+        SAMPLES_PER_SUBJECT = 400
+        K_SUPPORT = 5
+        Q_QUERY = 100
+
+        src_ds = self.datasets["train"]
+        N = len(src_ds.y)
+        n_subjects = N // SAMPLES_PER_SUBJECT
+        assert N % SAMPLES_PER_SUBJECT == 0, f"Dataset length {N} not divisible by 400"
+
+        rng = getattr(self.iterator, "rng", None)
+        if rng is None:
+            task_ids = np.random.choice(n_subjects, size=self.n_tasks_per_meta_batch, replace=False)
+        else:
+            task_ids = rng.choice(np.arange(n_subjects), size=self.n_tasks_per_meta_batch, replace=False)
+
+        meta_losses = []
+        support_losses = []
+        meta_grads = None
+
+        for task_num, sid in enumerate(task_ids, 1):
+            start, stop = sid * SAMPLES_PER_SUBJECT, (sid + 1) * SAMPLES_PER_SUBJECT
+            supp_idx = np.arange(start, start + K_SUPPORT)
+            query_idx = np.arange(stop - Q_QUERY, stop)
+
+            Xs, Ys = src_ds.X[supp_idx], src_ds.y[supp_idx]
+            Xq, Yq = src_ds.X[query_idx], src_ds.y[query_idx]
+
+            if Xs.ndim == 3:
+                Xs = Xs[:, :, :, np.newaxis]
+                Xq = Xq[:, :, :, np.newaxis]
+
+            # ---- inner loop on fast weights
+            fast = deepcopy(self.model)
+            if self.cuda: fast.cuda()
+            fast.train()
+            inner_opt = th.optim.SGD(fast.parameters(), lr=getattr(self, "inner_lr", 1e-3))
+
+            xs_var = np_to_var(Xs, pin_memory=self.pin_memory)
+            ys_var = np_to_var(Ys, pin_memory=self.pin_memory)
+            xq_var = np_to_var(Xq, pin_memory=self.pin_memory)
+            yq_var = np_to_var(Yq, pin_memory=self.pin_memory)
+            if self.cuda:
+                xs_var = xs_var.cuda(); ys_var = ys_var.cuda()
+                xq_var = xq_var.cuda(); yq_var = yq_var.cuda()
+
+            inner_steps = getattr(self, "inner_steps", 1)
+            for step in range(inner_steps):
+                inner_opt.zero_grad()
+                yhat_s = fast(xs_var)
+                loss_s = self.loss_function(yhat_s, ys_var)
+                if self.model_loss_function is not None:
+                    loss_s = loss_s + self.model_loss_function(fast)
+                loss_s.backward()
+                inner_opt.step()
+                log.debug(f"[META][Task {task_num}] Inner step {step+1}/{inner_steps}, "
+                        f"support loss={loss_s.item():.4f}")
+
+            support_losses.append(loss_s.detach().cpu())
+
+            # ---- query eval
+            fast.eval()
+            yhat_q = fast(xq_var)
+            loss_q = self.loss_function(yhat_q, yq_var)
+            if self.model_loss_function is not None:
+                loss_q = loss_q + self.model_loss_function(fast)
+            
+            meta_losses.append(loss_q.detach().cpu()) 
+            
+            # first-order: grads wrt fast params (no higher-order graph)
+            grads_q = th.autograd.grad(loss_q, list(fast.parameters()), retain_graph=False, create_graph=False)
+
+            # accumulate into meta_grads (on CPU to avoid fragmenting VRAM; or keep on device)
+            if meta_grads is None:
+                meta_grads = [g.detach() / self.n_tasks_per_meta_batch for g in grads_q]
+            else:
+                for i, g in enumerate(grads_q):
+                    meta_grads[i] += g.detach() / self.n_tasks_per_meta_batch
+
+            log.debug(f"[META][Task {task_num}] Query loss={loss_q.item():.4f}")
+
+            del fast, inner_opt, xs_var, ys_var, xq_var, yq_var, yhat_s, yhat_q
+
+        # ---- outer step
+        meta_loss = th.stack(meta_losses).mean()
+        self.optimizer.zero_grad()
+        # copy grads to base model params
+        for p, g in zip(self.model.parameters(), meta_grads):
+            if p.grad is None:
+                p.grad = th.zeros_like(p)
+            p.grad.copy_(g)
+        self.optimizer.step()
+
+        # log.debug(f"[META] Outer update done. Mean query loss={meta_loss.item():.4f}, "
+        #         f"Mean support loss={np.mean([l.item() for l in support_losses]):.4f}")
+
+        if self.model_constraint is not None:
+            self.model_constraint.apply(self.model)
+
+        return {
+            "meta_support_loss": float(np.mean([l.item() for l in support_losses])),
+            "meta_query_loss": meta_loss.item(),
+            "n_tasks": int(self.n_tasks_per_meta_batch),
+            "k_support": K_SUPPORT,
+            "q_query": Q_QUERY,
+            "inner_steps": int(getattr(self, "inner_steps", 1)),
+        }
 
     def meta_loss(self, datasets):
         overall_loss = 0
