@@ -47,6 +47,8 @@ parser.add_argument('outpath', type=str, help='Path to the result folder')
 parser.add_argument('-gpu', type=int, help='The gpu device to use', default=0)
 parser.add_argument('-fold', type=int,
                     help='Target fold to compute baseline models', required=True)
+parser.add_argument("batch_size", type=int, help="Batch size", default=16)
+parser.add_argument("train_epoch", type=int, help="Training epochs", default=100)
 
 args = parser.parse_args()
 datapath = args.datapath
@@ -63,8 +65,8 @@ torch.backends.cudnn.deterministic = True
 set_random_seeds(seed=20200205, cuda=True)
 print('Fold:', fold)
 print('cuda:', torch.cuda.current_device())
-BATCH_SIZE = 16
-TRAIN_EPOCH = 200
+BATCH_SIZE = args.batch_size
+TRAIN_EPOCH = args.train_epoch
 
 # Randomly shuffled subject.
 subjs = [35, 47, 46, 37, 13, 27, 12, 32, 53, 54, 4, 40, 19, 41, 18, 42, 34, 7,
