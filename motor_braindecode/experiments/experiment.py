@@ -2,6 +2,7 @@ import logging
 from collections import OrderedDict
 from copy import deepcopy
 import time
+import functools
 
 import pandas as pd
 import torch as th
@@ -20,6 +21,19 @@ from torch.func import functional_call
 
 
 log = logging.getLogger(__name__)
+
+
+def time_function(func):
+    """Decorator to time function execution and log the duration."""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        duration = end_time - start_time
+        log.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
+        return result
+    return wrapper
 
 
 class RememberBest(object):
@@ -234,6 +248,7 @@ class Experiment(object):
         self.inner_lr = 1e-3
         self.task_source = "train"    
 
+    @time_function
     def run(self):
         """
         Run complete training.
@@ -264,6 +279,7 @@ class Experiment(object):
                     self.epochs_df, self.model, self.optimizer
                 )
 
+    @time_function
     def setup_training(self):
         """
         Setup training, i.e. transform model to cuda,
@@ -302,6 +318,7 @@ class Experiment(object):
 
         self.run_until_stop(datasets, remember_best=True)
 
+    @time_function
     def run_until_stop(self, datasets, remember_best):
         """
         Run training and evaluation on given datasets until stop criterion is
@@ -327,6 +344,7 @@ class Experiment(object):
         while not self.stop_criterion.should_stop(self.epochs_df):
             self.run_one_epoch(datasets, remember_best)
 
+    @time_function
     def run_one_epoch(self, datasets, remember_best):
         """
         Run training and evaluation on given datasets for one epoch.
@@ -378,6 +396,7 @@ class Experiment(object):
         if remember_best:
             self.rememberer.remember_epoch(self.epochs_df, self.model, self.optimizer)
 
+    @time_function
     def meta_fomaml_step(self, rng=None):
         """
         FOMAML meta-episode using torch.func.functional_call (stateless).
@@ -643,6 +662,7 @@ class Experiment(object):
         if self.model_constraint is not None:
             self.model_constraint.apply(self.model)
 
+    @time_function
     def eval_on_batch(self, inputs, targets):
         """
         Evaluate given inputs and targets.
@@ -675,6 +695,7 @@ class Experiment(object):
             loss = loss.cpu().detach().numpy()
         return outputs, loss
 
+    @time_function
     def monitor_epoch(self, datasets):
         """
         Evaluate one epoch for given datasets.
@@ -799,6 +820,7 @@ class Experiment(object):
         for logger in self.loggers:
             logger.log_epoch(self.epochs_df)
 
+    @time_function
     def setup_after_stop_training(self):
         """
         Setup training after first stop. 
