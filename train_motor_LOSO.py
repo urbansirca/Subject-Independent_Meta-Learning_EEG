@@ -67,6 +67,8 @@ print('Fold:', fold)
 print('cuda:', torch.cuda.current_device())
 BATCH_SIZE = args.batch_size
 TRAIN_EPOCH = args.train_epoch
+LR = 4 * 1e-3
+META_LR = 4 * 1e-3
 
 # Randomly shuffled subject.
 subjs = [35, 47, 46, 37, 13, 27, 12, 32, 53, 54, 4, 40, 19, 41, 18, 42, 34, 7,
@@ -121,12 +123,12 @@ for cv_index, (train_index, test_index) in enumerate(kf.split(cv_set)):
                      input_time_length=train_set.X.shape[2],
                      final_conv_length='auto').cuda()
     # these are good values for the deep model
-    optimizer = AdamW(model.parameters(), lr=1*0.01, weight_decay=0.5*0.001)
+    optimizer = AdamW(model.parameters(), lr=LR, weight_decay=0.5*0.001)
     model.compile(loss=F.nll_loss, optimizer=optimizer, iterator_seed=1, )
 
     # Fit the base model for transfer learning, use early stopping as a hack to remember the model
     exp = model.fit(train_set.X, train_set.y, epochs=TRAIN_EPOCH, batch_size=BATCH_SIZE, scheduler='cosine',
-                    validation_data=(valid_set.X, valid_set.y), remember_best_column='valid_loss', meta=meta)
+                    validation_data=(valid_set.X, valid_set.y), remember_best_column='valid_loss', meta=meta, inner_lr=META_LR)
 
     rememberer = exp.rememberer
     base_model_param = {

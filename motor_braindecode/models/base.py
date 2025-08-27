@@ -132,7 +132,8 @@ class BaseModel(object):
         remember_best_column=None,
         scheduler=None,
         log_0_epoch=True,
-        meta = True
+        meta = True,
+        inner_lr = 1e-3
     ):
         """
         Fit the model using the given training data.
@@ -269,7 +270,8 @@ class BaseModel(object):
             cuda=self.cuda,
             log_0_epoch=log_0_epoch,
             do_early_stop=(remember_best_column is not None),
-            meta = meta
+            meta = meta,
+            inner_lr = inner_lr
         )
         exp.run()
         self.epochs_df = exp.epochs_df
@@ -324,10 +326,10 @@ class BaseModel(object):
             cuda=self.cuda,
             log_0_epoch=True,
             do_early_stop=False,
+
         )
 
         exp.monitor_epoch({"train": train_set})
-
         result_dict = dict(
             [
                 (key.replace("train_", ""), val)
