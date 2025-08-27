@@ -92,6 +92,8 @@ class AvgPool2dWithConv(torch.nn.Module):
             weights = weights.type_as(x)
             if x.is_cuda:
                 weights = weights.cuda()
+            elif hasattr(x, 'device'):
+                weights = weights.to(x.device)
             self._pool_weights = weights
 
         pooled = F.conv2d(

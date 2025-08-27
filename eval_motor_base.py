@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 from motor_braindecode.models.deep4 import Deep5Net
 from motor_braindecode.torch_ext.optimizers import AdamW
-from motor_braindecode.torch_ext.util import set_random_seeds
+from motor_braindecode.torch_ext.device_utils import get_device, set_random_seeds_safe, set_cuda_device_safely
 
 #python eval_base.py D:/DeepConvNet/pre-processed/KU_mi_smt.h5 D:/meta_ku_binary/results/ ./best_models/
 
@@ -34,8 +34,12 @@ datapath = args.datapath
 outpath = args.outpath
 modelpath = args.modelpath
 dfile = h5py.File(datapath, 'r')
-torch.cuda.set_device(args.gpu)
-set_random_seeds(seed=20200205, cuda=True)
+
+# Get device (CUDA if available, otherwise CPU)
+device = get_device(args.gpu)
+set_cuda_device_safely(args.gpu)
+set_random_seeds_safe(seed=20200205, gpu_id=args.gpu)
+
 BATCH_SIZE = 16
 
 # Randomly shuffled subject.
@@ -58,7 +62,7 @@ in_chans = X.shape[1]
 # final_conv_length = auto ensures we only get a single output in the time dimension
 model = Deep5Net(in_chans=in_chans, n_classes=n_classes,
                  input_time_length=X.shape[2],
-                 final_conv_length='auto').cuda()
+                 final_conv_length='auto').to(device)
 
 # Dummy train data to set up the model.
 X_train = np.zeros(X[:2].shape).astype(np.float32)
@@ -86,7 +90,7 @@ for fold, subj in enumerate(subjs):
     for i in range(0,6):
         # suffix = '_s' + str(subj) + '_f' + str(fold) + '_cv' + str(i)
         checkpoint = torch.load(pjoin(modelpath, 'model_f' + str(fold) + '_cv' + str(i) + '.pt'),
-                                map_location='cuda:' + str(args.gpu))
+                                map_location=device)
 
         # checkpoint = torch.load(pjoin(modelpath, 'model_f' + str(fold) + '.pt'),
         #                         map_location='cuda:' + str(args.gpu))
@@ -110,7 +114,7 @@ for fold, subj in enumerate(subjs):
 
     ## Save best models
     checkpoint = torch.load(pjoin(modelpath, 'model_f' + str(fold) + '_cv' + str(cv) + '.pt'),
-                                map_location='cuda:' + str(args.gpu))
+                                map_location=device)
     torch.save(checkpoint, pjoin(
         outpath, 'model_f{}.pt'.format(fold)))
 

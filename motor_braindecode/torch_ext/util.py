@@ -66,13 +66,16 @@ def set_random_seeds(seed, cuda):
 
 def confirm_gpu_availability():
     """
-    Should crash if gpu not available, attempts to create a FloatTensor on GPU.
+    Check if GPU is available, attempts to create a FloatTensor on GPU.
     Returns
     -------
     success: bool
-        Always returns true, should crash if gpu not available
+        True if GPU is available, False otherwise
     """
-    a = th.FloatTensor(1).cuda()
-    # Just make sure a is not somehow removed by any smart compiling,
-    # probably not necessary.
-    return a is not None
+    if th.cuda.is_available():
+        try:
+            a = th.FloatTensor(1).cuda()
+            return a is not None
+        except:
+            return False
+    return False

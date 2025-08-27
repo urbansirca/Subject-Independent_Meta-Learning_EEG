@@ -3,6 +3,7 @@ import time
 import numpy as np
 from numpy.random import RandomState
 import torch as th
+import logging
 
 from motor_braindecode.experiments.monitors import (
     LossMonitor,
@@ -47,8 +48,23 @@ class BaseModel(object):
         assert (
             not self.compiled
         ), "Call cuda before compiling model, otherwise optimization will not work"
-        self.network = self.network.cuda()
-        self.cuda = True
+        if th.cuda.is_available():
+            self.network = self.network.cuda()
+            self.cuda = True
+        else:
+            logging.warning("CUDA not available, model will run on CPU")
+            self.cuda = False
+        return self
+
+    def to(self, device):
+        """Move underlying model to specified device."""
+        self._ensure_network_exists()
+        assert (
+            not self.compiled
+        ), "Call to() before compiling model, otherwise optimization will not work"
+        self.network = self.network.to(device)
+        self.device = device
+        self.cuda = device.type == 'cuda'
         return self
 
     def parameters(self):
@@ -394,7 +410,9 @@ class BaseModel(object):
                 SignalAndTarget(X, dummy_y), False
             ):
                 b_X_var = np_to_var(b_X)
-                if self.cuda:
+                if hasattr(self, 'device'):
+                    b_X_var = b_X_var.to(self.device)
+                elif self.cuda:
                     b_X_var = b_X_var.cuda()
                 all_preds.append(var_to_np(self.network(b_X_var)))
         if self.cropped:

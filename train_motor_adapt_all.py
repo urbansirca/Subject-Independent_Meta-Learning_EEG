@@ -22,7 +22,7 @@ import torch
 import torch.nn.functional as F
 from motor_braindecode.models.deep4 import Deep5Net
 from motor_braindecode.torch_ext.optimizers import AdamW
-from motor_braindecode.torch_ext.util import set_random_seeds
+from motor_braindecode.torch_ext.device_utils import get_device, set_random_seeds_safe, set_cuda_device_safely
 from torch import nn
 
 # python train_adapt.py D:/DeepConvNet/pre-processed/KU_mi_smt.h5 D:/braindecode/results D:/braindecode/results_adapt -scheme 4 -trfrate 80
@@ -50,8 +50,12 @@ scheme = args.scheme
 rate = args.trfrate
 lr = args.lr
 dfile = h5py.File(datapath, 'r')
-torch.cuda.set_device(args.gpu)
-set_random_seeds(seed=20200205, cuda=True)
+
+# Get device (CUDA if available, otherwise CPU)
+device = get_device(args.gpu)
+set_cuda_device_safely(args.gpu)
+set_random_seeds_safe(seed=20200205, gpu_id=args.gpu)
+
 BATCH_SIZE = 16
 TRAIN_EPOCH = 200
 
@@ -73,7 +77,7 @@ in_chans = X.shape[1]
 # final_conv_length = auto ensures we only get a single output in the time dimension
 model = Deep5Net(in_chans=in_chans, n_classes=n_classes,
                  input_time_length=X.shape[2],
-                 final_conv_length='auto').cuda()
+                 final_conv_length='auto').to(device)
 
 # Deprecated.
 
@@ -169,7 +173,7 @@ assert(cutoff <= 200)
 for fold, subj in enumerate(subjs):
     suffix = '_s' + str(subj) + '_f' + str(fold)
     checkpoint = torch.load(pjoin(modelpath, 'model_f' + str(fold) + '.pt'),
-                            map_location='cuda:' + str(args.gpu))
+                            map_location=device)
     reset_model(checkpoint)
 
     X, Y = get_data(subj)

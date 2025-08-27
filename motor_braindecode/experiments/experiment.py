@@ -7,13 +7,18 @@ import pandas as pd
 import torch as th
 import numpy as np
 
+def _move_to_device(tensor, cuda):
+    """Move tensor to CUDA if available and requested, otherwise keep on CPU."""
+    if cuda and th.cuda.is_available():
+        return tensor.cuda()
+    return tensor
+
 from motor_braindecode.datautil.splitters import concatenate_sets
 from motor_braindecode.experiments.loggers import Printer
 from motor_braindecode.experiments.stopcriteria import MaxEpochs, ColumnBelow, Or
 from motor_braindecode.torch_ext.util import np_to_var
 
 from motor_braindecode.torch_ext.optimizers import AdamW
-import torch.nn.functional as F
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -267,8 +272,11 @@ class Experiment(object):
             self.loggers = [Printer()]
         self.epochs_df = pd.DataFrame()
         if self.cuda:
-            assert th.cuda.is_available(), "Cuda not available"
-            self.model.cuda()
+            if th.cuda.is_available():
+                self.model.cuda()
+            else:
+                log.warning("CUDA requested but not available, using CPU")
+                self.cuda = False
 
     def run_until_first_stop(self):
         """
@@ -377,9 +385,8 @@ class Experiment(object):
             # print(inputs.shape)
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
-            if self.cuda:
-                input_vars = input_vars.cuda()
-                target_vars = target_vars.cuda()
+            input_vars = _move_to_device(input_vars, self.cuda)
+            target_vars = _move_to_device(target_vars, self.cuda)
             self.optimizer.zero_grad()
             outputs = self.model(input_vars)
             loss = self.loss_function(outputs, target_vars)
@@ -396,9 +403,8 @@ class Experiment(object):
             inputs = inputs[:,:,:,np.newaxis]
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
-            if self.cuda:
-                input_vars = input_vars.cuda()
-                target_vars = target_vars.cuda()
+            input_vars = _move_to_device(input_vars, self.cuda)
+            target_vars = _move_to_device(target_vars, self.cuda)
             outputs = self.model(input_vars)
             meta_loss = self.loss_function(outputs, target_vars)
             if self.model_loss_function is not None:
@@ -463,9 +469,8 @@ class Experiment(object):
         # print(inputs.shape)
         input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
         target_vars = np_to_var(targets, pin_memory=self.pin_memory)
-        if self.cuda:
-            input_vars = input_vars.cuda()
-            target_vars = target_vars.cuda()
+        input_vars = _move_to_device(input_vars, self.cuda)
+        target_vars = _move_to_device(target_vars, self.cuda)
         self.optimizer.zero_grad()
         outputs = self.model(input_vars)
         loss = self.loss_function(outputs, target_vars)
@@ -496,9 +501,8 @@ class Experiment(object):
         with th.no_grad():
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
-            if self.cuda:
-                input_vars = input_vars.cuda()
-                target_vars = target_vars.cuda()
+            input_vars = _move_to_device(input_vars, self.cuda)
+            target_vars = _move_to_device(target_vars, self.cuda)
             outputs = self.model(input_vars)
             loss = self.loss_function(outputs, target_vars)
             if hasattr(outputs, "cpu"):

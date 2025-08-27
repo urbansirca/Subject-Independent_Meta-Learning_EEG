@@ -29,7 +29,7 @@ import torch.nn.functional as F
 from motor_braindecode.datautil.signal_target import SignalAndTarget
 # from braindecode.models.deep4 import Deep4Net
 from motor_braindecode.torch_ext.optimizers import AdamW
-from motor_braindecode.torch_ext.util import set_random_seeds
+from motor_braindecode.torch_ext.device_utils import get_device, set_random_seeds_safe, set_cuda_device_safely
 from sklearn.model_selection import KFold
 from torch import nn
 
@@ -55,14 +55,17 @@ fold = args.fold
 meta = args.meta
 print('Meta:', meta)
 dfile = h5py.File(datapath, 'r')
-torch.cuda.set_device(args.gpu)
-torch.manual_seed(0)
-torch.cuda.manual_seed_all(0)
-np.random.seed(0)
-torch.backends.cudnn.deterministic = True
-set_random_seeds(seed=20200205, cuda=True)
+
+# Get device (CUDA if available, otherwise CPU)
+device = get_device(args.gpu)
+set_cuda_device_safely(args.gpu)
+set_random_seeds_safe(seed=20200205, gpu_id=args.gpu)
+
 print('Fold:', fold)
-print('cuda:', torch.cuda.current_device())
+if torch.cuda.is_available():
+    print('cuda:', torch.cuda.current_device())
+else:
+    print('cuda: not available, using CPU')
 BATCH_SIZE = 16
 TRAIN_EPOCH = 200
 
@@ -104,7 +107,7 @@ def get_multi_data(subjs):
 
 model = Deep5Net(in_chans=62, n_classes=2,
                     input_time_length=1000,
-                    final_conv_length='auto').cuda()
+                    final_conv_length='auto').to(device)
 
 print(model)
 
@@ -125,7 +128,7 @@ for cv_index, (train_index, test_index) in enumerate(kf.split(cv_set)):
     # final_conv_length = auto ensures we only get a single output in the time dimension
     model = Deep5Net(in_chans=in_chans, n_classes=n_classes,
                      input_time_length=train_set.X.shape[2],
-                     final_conv_length='auto').cuda()
+                     final_conv_length='auto').to(device)
     # these are good values for the deep model
     optimizer = AdamW(model.parameters(), lr=1*0.01, weight_decay=0.5*0.001)
     model.compile(loss=F.nll_loss, optimizer=optimizer, iterator_seed=1, )
