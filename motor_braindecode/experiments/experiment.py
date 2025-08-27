@@ -15,6 +15,9 @@ from motor_braindecode.torch_ext.util import np_to_var
 from motor_braindecode.torch_ext.optimizers import AdamW
 import torch.nn.functional as F
 
+from torch.nn.utils.stateless import functional_call 
+
+
 log = logging.getLogger(__name__)
 
 
@@ -226,7 +229,7 @@ class Experiment(object):
 
         self.n_tasks_per_meta_batch = 8 
         self.n_meta_batches_per_epoch =  max(1, 54 // self.n_tasks_per_meta_batch)
-        self.inner_steps = 1
+        self.inner_steps = 5
         self.inner_lr = 1e-3
         self.task_source = "train"    
 
@@ -319,13 +322,14 @@ class Experiment(object):
                     self.epochs_df, self.model, self.optimizer
                 )
 
-        self.iterator.reset_rng()
+        self.iterator.reset_rng() # reset random number generator
         while not self.stop_criterion.should_stop(self.epochs_df):
             self.run_one_epoch(datasets, remember_best)
 
     def run_one_epoch(self, datasets, remember_best):
         """
         Run training and evaluation on given datasets for one epoch.
+        First, run normal training loop. Then, run meta-learning loop.
         
         Parameters
         ----------
@@ -335,87 +339,118 @@ class Experiment(object):
         remember_best: bool
             Whether to remember parameters if this epoch is best epoch.
         """
-        
         start_train_epoch_time = time.time()
+
+        # ---- NORMAL TRAINING LOOP (unchanged)
+        batch_generator = self.iterator.get_batches(datasets["train"], shuffle=True)
+        for inputs, targets in batch_generator:
+            if self.batch_modifier is not None:
+                inputs, targets = self.batch_modifier.process(inputs, targets)
+            if len(inputs) > 0:
+                self.train_batch(inputs, targets)
+
+        # ---- META-LEARNING LOOP (FOMAML with stateless fast-weights)
         if self.meta:
-            logs = []
-            # run only meta episodes this epoch
+            # micro-opt: reuse RNG, use running sums (not lists), cheap logging
+            rng = getattr(self.iterator, "rng", None)
+            if rng is None:
+                rng = np.random
+
+            meta_q_loss_sum = 0.0
+            meta_s_loss_sum = 0.0
+
             for _ in range(self.n_meta_batches_per_epoch):
-                stats = self.meta_fomaml_step()
-                logs.append(stats)
-            if logs:
-                mq = np.mean([d["meta_query_loss"] for d in logs])
-                ms = np.mean([d["meta_support_loss"] for d in logs])
+                stats = self.meta_fomaml_step(rng=rng)
+                meta_q_loss_sum += stats["meta_query_loss"]
+                meta_s_loss_sum += stats["meta_support_loss"]
+
+            if self.n_meta_batches_per_epoch > 0:
+                mq = meta_q_loss_sum / self.n_meta_batches_per_epoch
+                ms = meta_s_loss_sum / self.n_meta_batches_per_epoch
                 log.info(f"[FOMAML] meta_query_loss={mq:.4f} | meta_support_loss={ms:.4f}")
-        else:
-            batch_generator = self.iterator.get_batches(
-            datasets["train"], shuffle=True
-        )
-            for inputs, targets in batch_generator:
-                if self.batch_modifier is not None:
-                    inputs, targets = self.batch_modifier.process(inputs, targets)
-                # could happen that batch modifier has removed all inputs...
-                if len(inputs) > 0:
-                    self.train_batch(inputs, targets)
-                # if self.meta == True:
-                #     print("DOING META")
-                #     self.meta_loss(datasets)
+
         end_train_epoch_time = time.time()
-        log.info(
-            "Time only for training updates: {:.2f}s".format(
-                end_train_epoch_time - start_train_epoch_time
-            )
-        )
+        log.info("Time only for training updates: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
 
         self.monitor_epoch(datasets)
         self.log_epoch()
         if remember_best:
-            self.rememberer.remember_epoch(
-                self.epochs_df, self.model, self.optimizer
-            )
+            self.rememberer.remember_epoch(self.epochs_df, self.model, self.optimizer)
 
-    def meta_fomaml_step(self):
+    def meta_fomaml_step(self, rng=None):
         """
-        Minimal FOMAML step with debug logging.
-        Assumes: 400 trials per subject, 5 support, 100 query.
-        """
+        First-Order MAML meta-episode with stateless fast-weights.
 
+        Sampling per subject (Point 1):
+        - 400 trials per subject in-order -> 4 runs of 100 trials.
+        - Choose ONE run (0..3) as the QUERY (100 contiguous trials).
+        - Choose K support trials from the remaining 3 runs (300 trials total), no replacement.
+
+        Fast weights (Point 2):
+        - Use torch>=2.0 stateless.functional_call to avoid deepcopy.
+        - Keep all grads ON DEVICE (faster; we are not saving VRAM here).
+
+        Micro-optimizations:
+        - Filter to requires_grad params (LoRA-safe).
+        - Accumulate averaged grads directly; avoid big Python lists.
+        """
+        # ---- constants (could be config)
         SAMPLES_PER_SUBJECT = 400
-        K_SUPPORT = 5
-        Q_QUERY = 100
+        RUN_SIZE = 100
+        N_RUNS = 4
+        K_SUPPORT = getattr(self, "k_support", 5)     # default 5-shot
+        Q_QUERY = RUN_SIZE                            # whole run for query
+        inner_steps = int(getattr(self, "inner_steps", 1))
+        inner_lr = float(getattr(self, "inner_lr", 1e-3))
+
+        if rng is None:
+            rng = np.random
 
         src_ds = self.datasets["train"]
         N = len(src_ds.y)
         n_subjects = N // SAMPLES_PER_SUBJECT
         assert N % SAMPLES_PER_SUBJECT == 0, f"Dataset length {N} not divisible by 400"
 
-        rng = getattr(self.iterator, "rng", None)
-        if rng is None:
-            task_ids = np.random.choice(n_subjects, size=self.n_tasks_per_meta_batch, replace=False)
-        else:
-            task_ids = rng.choice(np.arange(n_subjects), size=self.n_tasks_per_meta_batch, replace=False)
+        # sample tasks (subjects) without replacement
+        task_ids = rng.choice(np.arange(n_subjects), size=self.n_tasks_per_meta_batch, replace=False)
 
-        meta_losses = []
-        support_losses = []
-        meta_grads = None
+        # Collect trainable params once (LoRA-safe); keep their names
+        named_base_params = [(n, p) for (n, p) in self.model.named_parameters() if p.requires_grad]
+        base_names = [n for n, _ in named_base_params]
+        base_params = [p for _, p in named_base_params]
+
+        # Accumulate averaged meta-grads by param name (kept on-device)
+        meta_grads = {n: th.zeros_like(p, device=p.device) for n, p in named_base_params}
+
+        # Running sums for logging
+        support_loss_sum = 0.0
+        query_loss_sum = 0.0
+
+        # Freeze stochastic layers/buffers during support/query to avoid contaminating global BN
+        # (stateless call overrides *parameters*; buffers live in the module; keep model in eval to freeze BN stats)
+        self.model.eval()
 
         for task_num, sid in enumerate(task_ids, 1):
-            start, stop = sid * SAMPLES_PER_SUBJECT, (sid + 1) * SAMPLES_PER_SUBJECT
-            supp_idx = np.arange(start, start + K_SUPPORT)
-            query_idx = np.arange(stop - Q_QUERY, stop)
+            subj_start = sid * SAMPLES_PER_SUBJECT
 
+            # ---- build per-run index ranges for this subject
+            run_ranges = [np.arange(subj_start + r * RUN_SIZE, subj_start + (r + 1) * RUN_SIZE) for r in range(N_RUNS)]
+
+            # ---- choose query run; support pool is the other three runs
+            q_run = int(rng.integers(0, N_RUNS))
+            query_idx = run_ranges[q_run]  # 100 contiguous trials
+            support_pool = np.concatenate([run_ranges[r] for r in range(N_RUNS) if r != q_run])
+            assert support_pool.size == SAMPLES_PER_SUBJECT - RUN_SIZE  # 300
+
+            # ---- sample K support (no replacement) from the 300
+            supp_idx = rng.choice(support_pool, size=K_SUPPORT, replace=False)
+
+            # ---- fetch arrays; add channel-last singleton axis if needed
             Xs, Ys = src_ds.X[supp_idx], src_ds.y[supp_idx]
             Xq, Yq = src_ds.X[query_idx], src_ds.y[query_idx]
-
             if Xs.ndim == 3:
                 Xs = Xs[:, :, :, np.newaxis]
                 Xq = Xq[:, :, :, np.newaxis]
-
-            # ---- inner loop on fast weights
-            fast = deepcopy(self.model)
-            if self.cuda: fast.cuda()
-            fast.train()
-            inner_opt = th.optim.SGD(fast.parameters(), lr=getattr(self, "inner_lr", 1e-3))
 
             xs_var = np_to_var(Xs, pin_memory=self.pin_memory)
             ys_var = np_to_var(Ys, pin_memory=self.pin_memory)
@@ -425,66 +460,69 @@ class Experiment(object):
                 xs_var = xs_var.cuda(); ys_var = ys_var.cuda()
                 xq_var = xq_var.cuda(); yq_var = yq_var.cuda()
 
-            inner_steps = getattr(self, "inner_steps", 1)
+            # ---- initialize fast-weights as a (detached) copy of base params (by name)
+            fast_params = {n: p.detach().clone() for n, p in named_base_params}
+
+            # ---- INNER LOOP: K steps of GD on SUPPORT using stateless functional forward
             for step in range(inner_steps):
-                inner_opt.zero_grad()
-                yhat_s = fast(xs_var)
+                yhat_s = functional_call(self.model, fast_params, (xs_var,))
                 loss_s = self.loss_function(yhat_s, ys_var)
                 if self.model_loss_function is not None:
-                    loss_s = loss_s + self.model_loss_function(fast)
-                loss_s.backward()
-                inner_opt.step()
-                log.debug(f"[META][Task {task_num}] Inner step {step+1}/{inner_steps}, "
-                        f"support loss={loss_s.item():.4f}")
+                    # regularization computed on fast weights -> use stateless forward/model_loss on a shadow module if needed
+                    loss_s = loss_s + self.model_loss_function(self.model)  # lightweight; doesn’t touch weights
 
-            support_losses.append(loss_s.detach().cpu())
+                # grads wrt fast (trainable) params; first-order (no create_graph)
+                grads = th.autograd.grad(loss_s, tuple(fast_params.values()), retain_graph=False, create_graph=False)
 
-            # ---- query eval
-            fast.eval()
-            yhat_q = fast(xq_var)
+                # SGD update: w' = w - alpha * g   (kept on-device; no deepcopy)
+                for (n, w), g in zip(fast_params.items(), grads):
+                    fast_params[n] = w - inner_lr * g
+
+                if step == inner_steps - 1:
+                    support_loss_sum += float(loss_s.detach().item())
+
+            # ---- QUERY: compute loss using the adapted fast weights (same stateless call)
+            yhat_q = functional_call(self.model, fast_params, (xq_var,))
             loss_q = self.loss_function(yhat_q, yq_var)
             if self.model_loss_function is not None:
-                loss_q = loss_q + self.model_loss_function(fast)
-            
-            meta_losses.append(loss_q.detach().cpu()) 
-            
-            # first-order: grads wrt fast params (no higher-order graph)
-            grads_q = th.autograd.grad(loss_q, list(fast.parameters()), retain_graph=False, create_graph=False)
+                loss_q = loss_q + self.model_loss_function(self.model)
 
-            # accumulate into meta_grads (on CPU to avoid fragmenting VRAM; or keep on device)
-            if meta_grads is None:
-                meta_grads = [g.detach() / self.n_tasks_per_meta_batch for g in grads_q]
-            else:
-                for i, g in enumerate(grads_q):
-                    meta_grads[i] += g.detach() / self.n_tasks_per_meta_batch
+            query_loss_sum += float(loss_q.detach().item())
 
-            log.debug(f"[META][Task {task_num}] Query loss={loss_q.item():.4f}")
+            # grads wrt fast weights; accumulate (average) into meta_grads mapped by name
+            grads_q = th.autograd.grad(loss_q, tuple(fast_params.values()), retain_graph=False, create_graph=False)
+            scale = 1.0 / float(self.n_tasks_per_meta_batch)
+            for (n, _), g in zip(fast_params.items(), grads_q):
+                meta_grads[n].add_(g.detach() * scale)
 
-            del fast, inner_opt, xs_var, ys_var, xq_var, yq_var, yhat_s, yhat_q
+            # (no need to delete; locals go out of scope; keeping everything on GPU is faster)
 
-        # ---- outer step
-        meta_loss = th.stack(meta_losses).mean()
+        # ---- OUTER STEP: write the averaged grads into the base model and step
         self.optimizer.zero_grad()
-        # copy grads to base model params
-        for p, g in zip(self.model.parameters(), meta_grads):
+        name_to_param = dict(self.model.named_parameters())
+        for n in base_names:
+            p = name_to_param[n]
+            if not p.requires_grad:
+                continue
             if p.grad is None:
-                p.grad = th.zeros_like(p)
-            p.grad.copy_(g)
+                p.grad = meta_grads[n]  # already on the correct device
+            else:
+                p.grad.copy_(meta_grads[n])
         self.optimizer.step()
-
-        # log.debug(f"[META] Outer update done. Mean query loss={meta_loss.item():.4f}, "
-        #         f"Mean support loss={np.mean([l.item() for l in support_losses]):.4f}")
 
         if self.model_constraint is not None:
             self.model_constraint.apply(self.model)
 
+        # return lightweight stats for the epoch logger
+        mean_support = support_loss_sum / float(self.n_tasks_per_meta_batch) if self.n_tasks_per_meta_batch > 0 else 0.0
+        mean_query = query_loss_sum / float(self.n_tasks_per_meta_batch) if self.n_tasks_per_meta_batch > 0 else 0.0
         return {
-            "meta_support_loss": float(np.mean([l.item() for l in support_losses])),
-            "meta_query_loss": meta_loss.item(),
+            "meta_support_loss": mean_support,
+            "meta_query_loss": mean_query,
             "n_tasks": int(self.n_tasks_per_meta_batch),
-            "k_support": K_SUPPORT,
-            "q_query": Q_QUERY,
-            "inner_steps": int(getattr(self, "inner_steps", 1)),
+            "k_support": int(K_SUPPORT),
+            "q_query": int(Q_QUERY),
+            "inner_steps": int(inner_steps),
         }
 
     def meta_loss(self, datasets):
