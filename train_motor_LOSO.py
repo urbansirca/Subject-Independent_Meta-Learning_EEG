@@ -39,12 +39,12 @@ from torch import nn
 # python custom.py D:/DeepConvNet/pre-processed/KU_mi_smt.h5 D:/braindecode/baseline_models D:/braindecode/results -scheme 5 -trfrate 10 -subj 1
 
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(sys.stdout))
-log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-formatter = logging.Formatter(log_fmt)
-logger.handlers[0].setFormatter(formatter)
+# logger = logging.getLogger(__name__)
+# logger.setLevel(logging.INFO)
+# logger.addHandler(logging.StreamHandler(sys.stdout))
+# log_fmt = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+# formatter = logging.Formatter(log_fmt)
+# logger.handlers[0].setFormatter(formatter)
 
 
 
@@ -88,14 +88,14 @@ final = {
     "n_folds": args.n_folds or config["n_folds"],
     "batch_size": args.batch_size or config["batch_size"],
     "train_epoch": args.train_epoch or config["train_epoch"],
-    "lr": args.lr or config["lr"],
+    "lr": args.lr or config["learning_rate"],
     "weight_decay": args.weight_decay or config["weight_decay"],
-    "scheduler": args.scheduler or config["scheduler"],
-    "meta_lr": args.meta_lr or config["meta_lr"],
+    "meta_lr": args.meta_lr or config["meta_learning_rate"],
     "n_tasks_per_meta_batch": args.n_tasks_per_meta_batch or config["n_tasks_per_meta_batch"],
     "inner_steps": args.inner_steps or config["inner_steps"],
     "kfold": args.kfold or config["kfold"],
-    "log_timing": args.log_timing or config["log_timing"]
+    "log_timing": args.log_timing or config["log_timing"],
+    "scheduler": config["scheduler"]
 }
 
 
@@ -139,10 +139,10 @@ torch.backends.cudnn.deterministic = True
 
 
 
-# logger.info all the arguments
-logger.info(final)
+# print all the arguments
+print(final)
 
-logger.info(f"Outpath: {outpath}")
+print(f"Outpath: {outpath}")
 
 
 # Get data from single subject.
@@ -164,19 +164,19 @@ def get_multi_data(subjs):
     return X, Y
 
 
-for fold in subjs[:n_folds]:
+for fold in range(len(subjs)):
     outpath = os.path.join(outpath, f"fold_{fold}")
     os.makedirs(outpath, exist_ok=True)
-    logger.info(f"Outpath: {outpath}")
+    print(f"Outpath: {outpath}")
 
     test_subj = subjs[fold]
     cv_set = np.array(subjs[fold+1:] + subjs[:fold])
 
-    logger.info("="*40)
-    logger.info(f"Fold {fold} of {n_folds}")
-    logger.info(f"Test subject: {test_subj}")
-    logger.info(f"CV set: {cv_set}")
-    logger.info("="*40)
+    print("="*40)
+    print(f"Fold {fold+1} of {n_folds}")
+    print(f"Test subject: {test_subj}")
+    print(f"CV set: {cv_set}")
+    print("="*40)
 
 
     kf = KFold(n_splits=kfold)
@@ -196,9 +196,9 @@ for fold in subjs[:n_folds]:
         n_classes = 2
         in_chans = train_set.X.shape[1]
 
-        logger.info(f"CV index {cv_index}")
-        logger.info(f"Train subjects: {train_index}")
-        logger.info(f"Validation subjects: {test_index}")
+        print(f"CV index {cv_index}")
+        print(f"Train subject indices: {train_index}")
+        print(f"Validation subject indices: {test_index}")
 
 
         # final_conv_length = auto ensures we only get a single output in the time dimension
@@ -206,8 +206,7 @@ for fold in subjs[:n_folds]:
                         input_time_length=train_set.X.shape[2],
                         final_conv_length='auto').cuda()
 
-        logger.info("model created: ", model)
-        # these are good values for the deep model
+        print(f"model created: {model}")        # these are good values for the deep model
         optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
         model.compile(loss=F.nll_loss, optimizer=optimizer, iterator_seed=1, )
 

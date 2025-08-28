@@ -16,11 +16,16 @@ from motor_braindecode.torch_ext.util import np_to_var
 from motor_braindecode.torch_ext.optimizers import AdamW
 import torch.nn.functional as F
 
-from torch.func import functional_call
 
+try:
+    from torch.func import functional_call
+except ImportError:
+    from torch.nn.utils.stateless import functional_call
 
 
 log = logging.getLogger(__name__)
+# configure logging
+logging.basicConfig(level=logging.INFO)
 
 # global list to store timing logs
 timing_logs = []
@@ -270,6 +275,7 @@ class Experiment(object):
         """
         Run complete training.
         """
+        print("running")
         self.setup_training()
         log.info("Run until first stop...")
         self.run_until_first_stop()
@@ -419,7 +425,6 @@ class Experiment(object):
         if remember_best:
             self.rememberer.remember_epoch(self.epochs_df, self.model, self.optimizer)
 
-    @time_function
     def meta_fomaml_step(self, rng=None):
         """
         FOMAML meta-episode using torch.func.functional_call (stateless).
@@ -855,6 +860,7 @@ class Experiment(object):
         log.info("Train loss to reach {:.5f}".format(loss_to_reach))
 
         # save timing logs to file
-        with open(self.outpath + "timing_logs.txt", "w") as f:
-            for log in timing_logs:
-                f.write(log + "\n")
+        if self.log_timing:
+            with open(self.outpath + "timing_logs.txt", "w") as f:
+                for log in timing_logs:
+                    f.write(log + "\n")
