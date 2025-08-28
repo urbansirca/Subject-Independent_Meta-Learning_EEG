@@ -24,15 +24,6 @@ except ImportError:
     from torch.nn.utils.stateless import functional_call
 
 
-# Simple logger setup - no custom configuration
-log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
-if not log.handlers:  # avoid duplicate logs if imported twice
-    _h = logging.StreamHandler(sys.stdout)
-    _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
-    log.addHandler(_h)
-    log.propagate = False
-
 
 # global list to store timing logs
 
@@ -55,7 +46,8 @@ def time_function(func):
         duration = end_time - start_time
         
         if should_log:
-            log.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
+            # Use print for timing logs since we're not setting up logging here
+            print(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
             # add log to global list
             global timing_logs
             timing_logs.append(f"{func.__name__}: {duration:.4f} seconds")
@@ -110,10 +102,10 @@ class RememberBest(object):
             self.lowest_val = current_val
             self.model_state_dict = deepcopy(model.state_dict())
             self.optimizer_state_dict = deepcopy(optimizer.state_dict())
-            log.info(
+            print(
                 "New best {:s}: {:5f}".format(self.column_name, current_val)
             )
-            log.info("")
+            print("")
 
     def reset_to_best_model(self, epochs_df, model, optimizer):
         """
@@ -289,15 +281,15 @@ class Experiment(object):
         Run complete training.
         """
         self.setup_training()
-        log.info("Run until first stop...")
+        print("Run until first stop...")
         self.run_until_first_stop()
         if self.do_early_stop:
             # always setup for second stop, in order to get best model
             # even if not running after early stop...
-            log.info("Setup for second stop...")
+            print("Setup for second stop...")
             self.setup_after_stop_training()
         if self.run_after_early_stop:
-            log.info("Run until second stop...")
+            print("Run until second stop...")
             loss_to_reach = float(self.epochs_df["train_loss"].iloc[-1])
             self.run_until_second_stop()
             if (
@@ -305,7 +297,7 @@ class Experiment(object):
             ) and self.reset_after_second_run:
                 # if no valid loss was found below the best train loss on 1st
                 # run, reset model to the epoch with lowest valid_misclass
-                log.info(
+                print(
                     "Resetting to best epoch {:d}".format(
                         self.rememberer.best_epoch
                     )
@@ -326,7 +318,7 @@ class Experiment(object):
         # Fix: More robust logger initialization
         if self.loggers is None or self.loggers == ("print",) or len(self.loggers) == 0:
             self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"])]
-            log.info("Initialized default loggers: Printer and TensorboardWriter")
+            print("Initialized default loggers: Printer and TensorboardWriter")
         
         self.epochs_df = pd.DataFrame()
         if self.cuda:
@@ -405,7 +397,7 @@ class Experiment(object):
             if len(inputs) > 0:
                 self.train_batch(inputs, targets)
         mid_time = time.time()
-        log.info(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
+        print(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
 
         # ---- META-LEARNING LOOP (FOMAML with stateless fast-weights)
         meta_support_loss = 0.0
@@ -428,7 +420,7 @@ class Experiment(object):
             if self.n_meta_batches_per_epoch > 0:
                 meta_support_loss = meta_s_loss_sum / self.n_meta_batches_per_epoch
                 meta_query_loss = meta_q_loss_sum / self.n_meta_batches_per_epoch
-                log.info(f"[FOMAML] meta_query_loss={meta_query_loss:.4f} | meta_support_loss={meta_support_loss:.4f}")
+                print(f"[FOMAML] meta_query_loss={meta_query_loss:.4f} | meta_support_loss={meta_support_loss:.4f}")
                 
         # Update meta-learning monitor with the losses
         for monitor in self.monitors:
@@ -436,9 +428,9 @@ class Experiment(object):
                 monitor.update_meta_losses(meta_support_loss, meta_query_loss)
 
         end_train_epoch_time = time.time()
-        log.info(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
+        print(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
 
-        log.info("Time for NORMAL + META-LEARNING: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
+        print("Time for NORMAL + META-LEARNING: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
 
         self.monitor_epoch(datasets)
         self.log_epoch()
@@ -856,7 +848,7 @@ class Experiment(object):
         """
 
         for logger in self.loggers:
-            log.info(f"Calling logger: {type(logger).__name__}")
+            print(f"Calling logger: {type(logger).__name__}")
             logger.log_epoch(self.epochs_df, fold_info=self.fold_info)
 
     def setup_after_stop_training(self):
@@ -880,7 +872,7 @@ class Experiment(object):
                 ),
             ]
         )
-        log.info("Train loss to reach {:.5f}".format(loss_to_reach))
+        print("Train loss to reach {:.5f}".format(loss_to_reach))
 
         # save timing logs to file
         if self.log_timing:
@@ -890,6 +882,6 @@ class Experiment(object):
                 with open(f"{log_dir}/timing_logs.txt", "w") as f:
                     for timing_log_entry in timing_logs:
                         f.write(timing_log_entry + "\n")
-                log.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
+                print(f"Timing logs saved to {log_dir}/timing_logs.txt")
             except Exception as e:
-                log.warning(f"Could not save timing logs: {e}")
+                print(f"Could not save timing logs: {e}")

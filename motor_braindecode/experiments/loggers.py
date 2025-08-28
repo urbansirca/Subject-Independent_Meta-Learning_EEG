@@ -1,11 +1,32 @@
 from abc import ABC, abstractmethod
 import logging
+import sys
 
-# Get the root logger or create a properly configured one
-log = logging.getLogger()  # Use root logger instead of __name__
+def setup_logging():
+    """Set up logging configuration for the entire application."""
+    # Create logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers to avoid duplicates
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Create console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(logging.INFO)
+    
+    # Create formatter
+    formatter = logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s")
+    console_handler.setFormatter(formatter)
+    
+    # Add handler to logger
+    logger.addHandler(console_handler)
+    
+    return logger
 
-# Alternative: Use the same logger configuration as experiment.py
-log = logging.getLogger("motor_braindecode.experiments.experiment")
+# Set up logging when module is imported
+log = setup_logging()
 
 
 class Logger(ABC):
@@ -72,8 +93,6 @@ class TensorboardWriter(Logger):
     ----------
     log_dir: string
         Directory path to log the output to
-    fold_info: dict, optional
-        Dictionary containing fold information like {'loso_fold': 1, 'cv_fold': 2}
     """
 
     def __init__(self, log_dir):
