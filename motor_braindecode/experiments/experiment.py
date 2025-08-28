@@ -854,11 +854,7 @@ class Experiment(object):
         """
         Print monitoring values for this epoch.
         """
-        # Debug: Log what we're trying to log
-        log.info(f"Logging epoch, epochs_df shape: {self.epochs_df.shape}")
-        log.info(f"Epochs_df columns: {list(self.epochs_df.columns)}")
-        log.info(f"Epochs_df content: {self.epochs_df}")
-        
+
         for logger in self.loggers:
             log.info(f"Calling logger: {type(logger).__name__}")
             logger.log_epoch(self.epochs_df, fold_info=self.fold_info)
