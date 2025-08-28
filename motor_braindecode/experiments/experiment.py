@@ -317,7 +317,7 @@ class Experiment(object):
         if self.do_early_stop:
             self.rememberer = RememberBest(self.remember_best_column)
         if self.loggers == ("print",):
-            self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"], fold_info=self.fold_info)]
+            self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"])]
         self.epochs_df = pd.DataFrame()
         if self.cuda:
             assert th.cuda.is_available(), "Cuda not available"
