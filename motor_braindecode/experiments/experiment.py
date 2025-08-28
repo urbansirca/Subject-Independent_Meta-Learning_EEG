@@ -3,7 +3,6 @@ from collections import OrderedDict
 from copy import deepcopy
 import time
 import functools
-import yaml
 import sys
 
 import pandas as pd
@@ -23,13 +22,8 @@ try:
 except ImportError:
     from torch.nn.utils.stateless import functional_call
 
-# ---- Load config.yaml ----
-try:
-    with open("config.yaml", "r") as f:
-        config = yaml.safe_load(f)["experiment"]
-except FileNotFoundError:
-    print("Warning: config.yaml not found, using defaults")
-    config = {"tensorboard_path": "./runs"}
+
+config = {"tensorboard_path": "workspace/Subject-Independent_Meta-Learning_EEG/runs"}
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
