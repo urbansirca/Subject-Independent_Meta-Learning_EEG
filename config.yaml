@@ -2,18 +2,18 @@
 experiment:
   meta: true
   batch_size: 128
-  train_epoch: 30
+  train_epoch: 50
   learning_rate: 0.002
   weight_decay: 0.0025
   scheduler: "cosine"
 
-  meta_learning_rate: 0.002
-  n_tasks_per_meta_batch: 8 # Subjects for maml
-  inner_steps: 5
-  n_folds: 5 #LOSO
-  kfold: 3 #CV
+  meta_learning_rate: 0.004
+  n_tasks_per_meta_batch: 20 # Subjects for maml
+  inner_steps: 20
+  n_folds: 10 #LOSO
+  kfold: 6 #CV
   gpu: 0
-  log_timing: false
+  log_timing: true
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
