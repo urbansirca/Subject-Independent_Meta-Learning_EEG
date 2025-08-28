@@ -67,7 +67,8 @@ class AdamW(Optimizer):
                 state["step"] += 1
 
                 # Decay the first and second moment running average coefficient
-                exp_avg.mul_(beta1).add_(1 - beta1, grad)
+                # Fixed: Use modern PyTorch syntax to avoid deprecation warning
+                exp_avg.mul_(beta1).add_(grad, alpha=1 - beta1)
                 exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
 
                 denom = exp_avg_sq.sqrt().add_(group["eps"])
@@ -80,6 +81,7 @@ class AdamW(Optimizer):
 
                 p.data.addcdiv_(-step_size, exp_avg, denom)
                 if group["weight_decay"] != 0:
-                    p.data.add_(-group["weight_decay"], p.data)
+                    # Fixed: Use modern PyTorch syntax for weight decay
+                    p.data.add_(p.data, alpha=-group["weight_decay"])
 
         return loss

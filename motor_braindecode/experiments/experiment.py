@@ -322,8 +322,12 @@ class Experiment(object):
         # reset remember best extension in case you rerun some experiment
         if self.do_early_stop:
             self.rememberer = RememberBest(self.remember_best_column)
-        if self.loggers == ("print",):
+        
+        # Fix: More robust logger initialization
+        if self.loggers is None or self.loggers == ("print",) or len(self.loggers) == 0:
             self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"])]
+            log.info("Initialized default loggers: Printer and TensorboardWriter")
+        
         self.epochs_df = pd.DataFrame()
         if self.cuda:
             assert th.cuda.is_available(), "Cuda not available"
@@ -850,7 +854,13 @@ class Experiment(object):
         """
         Print monitoring values for this epoch.
         """
+        # Debug: Log what we're trying to log
+        log.info(f"Logging epoch, epochs_df shape: {self.epochs_df.shape}")
+        log.info(f"Epochs_df columns: {list(self.epochs_df.columns)}")
+        log.info(f"Epochs_df content: {self.epochs_df}")
+        
         for logger in self.loggers:
+            log.info(f"Calling logger: {type(logger).__name__}")
             logger.log_epoch(self.epochs_df, fold_info=self.fold_info)
 
     def setup_after_stop_training(self):
