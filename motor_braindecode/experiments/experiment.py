@@ -22,16 +22,29 @@ from torch.func import functional_call
 
 log = logging.getLogger(__name__)
 
+# global list to store timing logs
+timing_logs = []
 
 def time_function(func):
     """Decorator to time function execution and log the duration."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
+        # Check if timing should be logged by looking at the first argument (self)
+        should_log = False
+        if args and hasattr(args[0], 'log_timing'):
+            should_log = args[0].log_timing
+        
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
         duration = end_time - start_time
-        log.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
+        
+        if should_log:
+            log.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
+            # add log to global list
+            global timing_logs
+            timing_logs.append(f"{func.__name__}: {duration:.4f} seconds")
+        
         return result
     return wrapper
 
@@ -200,7 +213,10 @@ class Experiment(object):
         log_0_epoch=True,
         loggers=("print",),
         meta = True,
-        inner_lr = 1e-3
+        inner_lr = 1e-3,
+        n_tasks_per_meta_batch = 8,
+        inner_steps = 5,
+        log_timing = False
     ):
         if run_after_early_stop or reset_after_second_run:
             assert do_early_stop == True, (
@@ -241,11 +257,11 @@ class Experiment(object):
         self.reset_after_second_run = reset_after_second_run
         self.log_0_epoch = log_0_epoch
         self.loggers = loggers
+        self.log_timing = log_timing
         self.meta = meta
-
-        self.n_tasks_per_meta_batch = 8 
+        self.n_tasks_per_meta_batch = n_tasks_per_meta_batch
         self.n_meta_batches_per_epoch =  max(1, 54 // self.n_tasks_per_meta_batch)
-        self.inner_steps = 5
+        self.inner_steps = inner_steps
         self.inner_lr = inner_lr
         self.task_source = "train"    
 
@@ -837,3 +853,8 @@ class Experiment(object):
             ]
         )
         log.info("Train loss to reach {:.5f}".format(loss_to_reach))
+
+        # save timing logs to file
+        with open(self.outpath + "timing_logs.txt", "w") as f:
+            for log in timing_logs:
+                f.write(log + "\n")

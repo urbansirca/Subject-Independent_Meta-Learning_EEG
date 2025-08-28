@@ -1,0 +1,24 @@
+# config.yaml
+experiment:
+  meta: true
+  batch_size: 128
+  train_epoch: 100
+  learning_rate: 0.002
+  weight_decay: 0.0025
+
+  meta_learning_rate: 0.002
+  n_tasks_per_meta_batch: 8 # Subjects for maml
+  inner_steps: 5
+  n_folds: 5 #LOSO
+  kfold: 6 #CV
+  gpu: 0
+  log_timing: true
+  
+  
+
+paths:
+  data: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
+  results: "results/" # saved to subfolders
+
+model:
+  type: Deep5Net

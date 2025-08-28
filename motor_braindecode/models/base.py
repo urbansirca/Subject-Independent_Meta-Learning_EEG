@@ -133,7 +133,10 @@ class BaseModel(object):
         scheduler=None,
         log_0_epoch=True,
         meta = True,
-        inner_lr = 1e-3
+        inner_lr = 1e-3,
+        n_tasks_per_meta_batch = 8,
+        inner_steps = 5,
+        log_timing = False
     ):
         """
         Fit the model using the given training data.
@@ -271,7 +274,10 @@ class BaseModel(object):
             log_0_epoch=log_0_epoch,
             do_early_stop=(remember_best_column is not None),
             meta = meta,
-            inner_lr = inner_lr
+            inner_lr = inner_lr,
+            n_tasks_per_meta_batch = n_tasks_per_meta_batch,
+            inner_steps = inner_steps,
+            log_timing = log_timing
         )
         exp.run()
         self.epochs_df = exp.epochs_df
