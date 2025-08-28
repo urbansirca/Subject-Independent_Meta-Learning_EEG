@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 import logging
 
-log = logging.getLogger(__name__)
+# Get the root logger or create a properly configured one
+log = logging.getLogger()  # Use root logger instead of __name__
+
+# Alternative: Use the same logger configuration as experiment.py
+# log = logging.getLogger("motor_braindecode.experiments.experiment")
 
 
 class Logger(ABC):
