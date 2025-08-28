@@ -24,10 +24,12 @@ except ImportError:
     from torch.nn.utils.stateless import functional_call
 
 # ---- Load config.yaml ----
-with open("config.yaml", "r") as f:
-    config = yaml.safe_load(f)["experiment"]
-
-
+try:
+    with open("config.yaml", "r") as f:
+        config = yaml.safe_load(f)["experiment"]
+except FileNotFoundError:
+    print("Warning: config.yaml not found, using defaults")
+    config = {"tensorboard_path": "./runs"}
 
 log = logging.getLogger(__name__)
 
@@ -872,6 +874,12 @@ class Experiment(object):
 
         # save timing logs to file
         if self.log_timing:
-            with open(self.outpath + "timing_logs.txt", "w") as f:
-                for log in timing_logs:
-                    f.write(log + "\n")
+            try:
+                # Use config tensorboard path as default if outpath not set
+                log_dir = getattr(self, 'outpath', config.get('tensorboard_path', './results'))
+                with open(f"{log_dir}/timing_logs.txt", "w") as f:
+                    for log_entry in timing_logs:
+                        f.write(log_entry + "\n")
+                log.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
+            except Exception as e:
+                log.warning(f"Could not save timing logs: {e}")
