@@ -26,6 +26,12 @@ except ImportError:
 
 # Simple logger setup - no custom configuration
 log = logging.getLogger(__name__)
+log.setLevel(logging.INFO)
+if not log.handlers:  # avoid duplicate logs if imported twice
+    _h = logging.StreamHandler(sys.stdout)
+    _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+    log.addHandler(_h)
+    log.propagate = False
 
 
 # global list to store timing logs
