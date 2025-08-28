@@ -1,17 +1,17 @@
 # config.yaml
 experiment:
   meta: true
-  batch_size: 16
-  train_epoch: 100
+  batch_size: 128
+  train_epoch: 30
   learning_rate: 0.002
   weight_decay: 0.0025
   scheduler: "cosine"
 
   meta_learning_rate: 0.002
-  n_tasks_per_meta_batch: 8 # Subjects for maml
+  n_tasks_per_meta_batch: 10 # Subjects for maml
   inner_steps: 5
   n_folds: 5 #LOSO
-  kfold: 6 #CV
+  kfold: 3 #CV
   gpu: 0
   log_timing: true
   
