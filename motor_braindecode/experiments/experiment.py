@@ -8,6 +8,7 @@ import sys
 import pandas as pd
 import torch as th
 import numpy as np
+import yaml
 
 from motor_braindecode.datautil.splitters import concatenate_sets
 from motor_braindecode.experiments.loggers import Printer, TensorboardWriter
@@ -23,20 +24,16 @@ except ImportError:
     from torch.nn.utils.stateless import functional_call
 
 
-config = {"tensorboard_path": "workspace/Subject-Independent_Meta-Learning_EEG/runs"}
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-if not logger.handlers:  # avoid duplicate logs if imported twice
-    _h = logging.StreamHandler(sys.stdout)
-    _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
-    logger.addHandler(_h)
-    logger.propagate = False
+# Simple logger setup - no custom configuration
+log = logging.getLogger(__name__)
 
 
 # global list to store timing logs
-timing_logs = []
 
+with open('config.yaml', 'r') as f:
+    config = yaml.safe_load(f)["experiment"]
+
+timing_logs = []
 def time_function(func):
     """Decorator to time function execution and log the duration."""
     @functools.wraps(func)
@@ -52,7 +49,7 @@ def time_function(func):
         duration = end_time - start_time
         
         if should_log:
-            logger.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
+            log.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
             # add log to global list
             global timing_logs
             timing_logs.append(f"{func.__name__}: {duration:.4f} seconds")
@@ -107,10 +104,10 @@ class RememberBest(object):
             self.lowest_val = current_val
             self.model_state_dict = deepcopy(model.state_dict())
             self.optimizer_state_dict = deepcopy(optimizer.state_dict())
-            logger.info(
+            log.info(
                 "New best {:s}: {:5f}".format(self.column_name, current_val)
             )
-            logger.info("")
+            log.info("")
 
     def reset_to_best_model(self, epochs_df, model, optimizer):
         """
@@ -279,21 +276,20 @@ class Experiment(object):
         self.first_run = True
 
 
-    @time_function
     def run(self):
         """
         Run complete training.
         """
         self.setup_training()
-        logger.info("Run until first stop...")
+        log.info("Run until first stop...")
         self.run_until_first_stop()
         if self.do_early_stop:
             # always setup for second stop, in order to get best model
             # even if not running after early stop...
-            logger.info("Setup for second stop...")
+            log.info("Setup for second stop...")
             self.setup_after_stop_training()
         if self.run_after_early_stop:
-            logger.info("Run until second stop...")
+            log.info("Run until second stop...")
             loss_to_reach = float(self.epochs_df["train_loss"].iloc[-1])
             self.run_until_second_stop()
             if (
@@ -301,7 +297,7 @@ class Experiment(object):
             ) and self.reset_after_second_run:
                 # if no valid loss was found below the best train loss on 1st
                 # run, reset model to the epoch with lowest valid_misclass
-                logger.info(
+                log.info(
                     "Resetting to best epoch {:d}".format(
                         self.rememberer.best_epoch
                     )
@@ -348,7 +344,6 @@ class Experiment(object):
 
         self.run_until_stop(datasets, remember_best=True)
 
-    @time_function
     def run_until_stop(self, datasets, remember_best):
         """
         Run training and evaluation on given datasets until stop criterion is
@@ -375,7 +370,6 @@ class Experiment(object):
             self.run_one_epoch(datasets, remember_best)
 
 
-    @time_function
     def run_one_epoch(self, datasets, remember_best):
         """
         Run training and evaluation on given datasets for one epoch.
@@ -399,9 +393,12 @@ class Experiment(object):
             if len(inputs) > 0:
                 self.train_batch(inputs, targets)
         mid_time = time.time()
-        logger.info(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
+        log.info(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
 
         # ---- META-LEARNING LOOP (FOMAML with stateless fast-weights)
+        meta_support_loss = 0.0
+        meta_query_loss = 0.0
+        
         if self.meta:
             # micro-opt: reuse RNG, use running sums (not lists), cheap logging
             rng = getattr(self.iterator, "rng", None)
@@ -417,17 +414,19 @@ class Experiment(object):
                 meta_s_loss_sum += stats["meta_support_loss"]
 
             if self.n_meta_batches_per_epoch > 0:
-                mq = meta_q_loss_sum / self.n_meta_batches_per_epoch
-                ms = meta_s_loss_sum / self.n_meta_batches_per_epoch
-                logger.info(f"[FOMAML] meta_query_loss={mq:.4f} | meta_support_loss={ms:.4f}")
+                meta_support_loss = meta_s_loss_sum / self.n_meta_batches_per_epoch
+                meta_query_loss = meta_q_loss_sum / self.n_meta_batches_per_epoch
+                log.info(f"[FOMAML] meta_query_loss={meta_query_loss:.4f} | meta_support_loss={meta_support_loss:.4f}")
                 
-
-        
+        # Update meta-learning monitor with the losses
+        for monitor in self.monitors:
+            if hasattr(monitor, 'update_meta_losses'):
+                monitor.update_meta_losses(meta_support_loss, meta_query_loss)
 
         end_train_epoch_time = time.time()
-        logger.info(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
+        log.info(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
 
-        logger.info("Time only for training updates: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
+        log.info("Time for NORMAL + META-LEARNING: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
 
         self.monitor_epoch(datasets)
         self.log_epoch()
@@ -447,7 +446,7 @@ class Experiment(object):
         N_RUNS = 4
         K_SUPPORT = int(getattr(self, "k_support", 5))
         Q_QUERY = RUN_SIZE
-        inner_steps = int(getattr(self, "inner_steps", 1))
+        inner_steps = int(getattr(self, "inner_steps", 5))
         inner_lr = float(getattr(self, "inner_lr", 1e-3))
 
         if rng is None:
@@ -742,7 +741,6 @@ class Experiment(object):
             
         return outputs, loss
 
-    @time_function
     def monitor_epoch(self, datasets):
         """
         Evaluate one epoch for given datasets.
@@ -847,7 +845,6 @@ class Experiment(object):
         for logger in self.loggers:
             logger.log_epoch(self.epochs_df)
 
-    @time_function
     def setup_after_stop_training(self):
         """
         Setup training after first stop. 
@@ -869,16 +866,16 @@ class Experiment(object):
                 ),
             ]
         )
-        logger.info("Train loss to reach {:.5f}".format(loss_to_reach))
+        log.info("Train loss to reach {:.5f}".format(loss_to_reach))
 
         # save timing logs to file
         if self.log_timing:
             try:
-                # Use config tensorboard path as default if outpath not set
-                log_dir = getattr(self, 'outpath', config.get('tensorboard_path', './runs'))
+                # Use default path if outpath not set
+                log_dir = getattr(self, 'outpath', './results')
                 with open(f"{log_dir}/timing_logs.txt", "w") as f:
                     for timing_log_entry in timing_logs:
                         f.write(timing_log_entry + "\n")
-                logger.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
+                log.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
             except Exception as e:
-                logger.warning(f"Could not save timing logs: {e}")
+                log.warning(f"Could not save timing logs: {e}")

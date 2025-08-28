@@ -164,7 +164,7 @@ def get_multi_data(subjs):
     return X, Y
 
 
-for fold in range(len(subjs)):
+for fold in range(n_folds):
     outpath = os.path.join(outpath, f"fold_{fold}")
     os.makedirs(outpath, exist_ok=True)
     print(f"Outpath: {outpath}")
@@ -196,7 +196,7 @@ for fold in range(len(subjs)):
         n_classes = 2
         in_chans = train_set.X.shape[1]
 
-        print(f"CV index {cv_index}")
+        print(f"CV  {cv_index+1} out of {kfold}")
         print(f"Train subject indices: {train_index}")
         print(f"Validation subject indices: {test_index}")
 

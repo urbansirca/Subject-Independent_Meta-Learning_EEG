@@ -1,7 +1,7 @@
 # config.yaml
 experiment:
   meta: true
-  batch_size: 16
+  batch_size: 128
   train_epoch: 30
   learning_rate: 0.002
   weight_decay: 0.0025
@@ -13,11 +13,8 @@ experiment:
   n_folds: 5 #LOSO
   kfold: 3 #CV
   gpu: 0
-  log_timing: true
+  log_timing: false
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
   tensorboard_path: "runs"
-
-model:
-  type: Deep5Net

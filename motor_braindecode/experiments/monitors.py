@@ -425,3 +425,81 @@ class RuntimeMonitor(object):
         dataset,
     ):
         return {}
+
+
+class MetaLearningMonitor(object):
+    """
+    Monitor meta-learning specific metrics including support loss, query loss, and accuracy.
+    """
+
+    def __init__(self):
+        self.meta_support_loss = 0.0
+        self.meta_query_loss = 0.0
+        self.train_accuracy = 0.0
+        self.val_accuracy = 0.0
+
+    def monitor_epoch(self):
+        return {
+            "meta_support_loss": self.meta_support_loss,
+            "meta_query_loss": self.meta_query_loss,
+            "train_accuracy": self.train_accuracy,
+            "val_accuracy": self.val_accuracy
+        }
+
+    def monitor_set(
+        self,
+        setname,
+        all_preds,
+        all_losses,
+        all_batch_sizes,
+        all_targets,
+        dataset,
+    ):
+        # Calculate accuracy for this set
+        all_pred_labels = []
+        all_target_labels = []
+        
+        for i_batch in range(len(all_batch_sizes)):
+            preds = all_preds[i_batch]
+            targets = all_targets[i_batch]
+            
+            # Handle predictions
+            if preds.ndim > 1:
+                only_one_row = preds.shape[0] == 1
+                pred_labels = np.argmax(preds, axis=1).squeeze()
+                if only_one_row:
+                    pred_labels = pred_labels[None]
+            else:
+                pred_labels = preds
+                
+            # Handle targets
+            if targets.ndim > pred_labels.ndim:
+                targets = np.argmax(targets, axis=1)
+            elif targets.ndim < pred_labels.ndim:
+                extra_dim = pred_labels.ndim - 1
+                targets = np.repeat(
+                    np.expand_dims(targets, extra_dim),
+                    pred_labels.shape[extra_dim],
+                    extra_dim,
+                )
+                
+            all_pred_labels.extend(pred_labels)
+            all_target_labels.extend(targets)
+            
+        all_pred_labels = np.array(all_pred_labels)
+        all_target_labels = np.array(all_target_labels)
+        
+        accuracy = np.mean(all_target_labels == all_pred_labels)
+        
+        # Update the appropriate accuracy based on setname
+        if setname == "train":
+            self.train_accuracy = accuracy
+        elif setname == "valid":
+            self.val_accuracy = accuracy
+            
+        return {}
+
+    def update_meta_losses(self, meta_support_loss, meta_query_loss):
+        """Update meta-learning losses from the training loop."""
+        self.meta_support_loss = meta_support_loss
+        self.meta_query_loss = meta_query_loss

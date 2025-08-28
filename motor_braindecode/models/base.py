@@ -9,6 +9,7 @@ from motor_braindecode.experiments.monitors import (
     MisclassMonitor,
     RuntimeMonitor,
     CroppedTrialMisclassMonitor,
+    MetaLearningMonitor,
     compute_trial_labels_from_crop_preds,
     compute_pred_labels_from_trial_preds,
     compute_preds_per_trial_from_crops,
@@ -257,6 +258,7 @@ class BaseModel(object):
         if self.extra_monitors is not None:
             self.monitors.extend(self.extra_monitors)
         self.monitors.append(RuntimeMonitor())
+        self.monitors.append(MetaLearningMonitor())
         exp = Experiment(
             self.network,
             train_set,
