@@ -3,29 +3,35 @@ from collections import OrderedDict
 from copy import deepcopy
 import time
 import functools
+import yaml
+import sys
 
 import pandas as pd
 import torch as th
 import numpy as np
 
 from motor_braindecode.datautil.splitters import concatenate_sets
-from motor_braindecode.experiments.loggers import Printer
+from motor_braindecode.experiments.loggers import Printer, TensorboardWriter
 from motor_braindecode.experiments.stopcriteria import MaxEpochs, ColumnBelow, Or
 from motor_braindecode.torch_ext.util import np_to_var
 
 from motor_braindecode.torch_ext.optimizers import AdamW
 import torch.nn.functional as F
 
-
 try:
     from torch.func import functional_call
 except ImportError:
     from torch.nn.utils.stateless import functional_call
 
+# ---- Load config.yaml ----
+with open("config.yaml", "r") as f:
+    config = yaml.safe_load(f)["experiment"]
+
+
 
 log = logging.getLogger(__name__)
-# configure logging
 logging.basicConfig(level=logging.INFO)
+
 
 # global list to store timing logs
 timing_logs = []
@@ -268,14 +274,15 @@ class Experiment(object):
         self.n_meta_batches_per_epoch =  max(1, 54 // self.n_tasks_per_meta_batch)
         self.inner_steps = inner_steps
         self.inner_lr = inner_lr
-        self.task_source = "train"    
+        self.task_source = "train"
+        self.first_run = True
+
 
     @time_function
     def run(self):
         """
         Run complete training.
         """
-        print("running")
         self.setup_training()
         log.info("Run until first stop...")
         self.run_until_first_stop()
@@ -311,7 +318,7 @@ class Experiment(object):
         if self.do_early_stop:
             self.rememberer = RememberBest(self.remember_best_column)
         if self.loggers == ("print",):
-            self.loggers = [Printer()]
+            self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"])]
         self.epochs_df = pd.DataFrame()
         if self.cuda:
             assert th.cuda.is_available(), "Cuda not available"
@@ -412,6 +419,7 @@ class Experiment(object):
                 mq = meta_q_loss_sum / self.n_meta_batches_per_epoch
                 ms = meta_s_loss_sum / self.n_meta_batches_per_epoch
                 log.info(f"[FOMAML] meta_query_loss={mq:.4f} | meta_support_loss={ms:.4f}")
+                
 
         
 
@@ -676,6 +684,8 @@ class Experiment(object):
         # print(inputs.shape)
         input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
         target_vars = np_to_var(targets, pin_memory=self.pin_memory)
+
+        
         if self.cuda:
             input_vars = input_vars.cuda()
             target_vars = target_vars.cuda()
@@ -709,6 +719,7 @@ class Experiment(object):
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
             
+        
             # OPTIMIZATION: Move to GPU only once
             if self.cuda:
                 input_vars = input_vars.cuda()
