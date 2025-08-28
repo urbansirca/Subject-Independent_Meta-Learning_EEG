@@ -31,7 +31,7 @@ except FileNotFoundError:
     print("Warning: config.yaml not found, using defaults")
     config = {"tensorboard_path": "./runs"}
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 
@@ -53,7 +53,7 @@ def time_function(func):
         duration = end_time - start_time
         
         if should_log:
-            log.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
+            logger.info(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
             # add log to global list
             global timing_logs
             timing_logs.append(f"{func.__name__}: {duration:.4f} seconds")
@@ -108,10 +108,10 @@ class RememberBest(object):
             self.lowest_val = current_val
             self.model_state_dict = deepcopy(model.state_dict())
             self.optimizer_state_dict = deepcopy(optimizer.state_dict())
-            log.info(
+            logger.info(
                 "New best {:s}: {:5f}".format(self.column_name, current_val)
             )
-            log.info("")
+            logger.info("")
 
     def reset_to_best_model(self, epochs_df, model, optimizer):
         """
@@ -286,15 +286,15 @@ class Experiment(object):
         Run complete training.
         """
         self.setup_training()
-        log.info("Run until first stop...")
+        logger.info("Run until first stop...")
         self.run_until_first_stop()
         if self.do_early_stop:
             # always setup for second stop, in order to get best model
             # even if not running after early stop...
-            log.info("Setup for second stop...")
+            logger.info("Setup for second stop...")
             self.setup_after_stop_training()
         if self.run_after_early_stop:
-            log.info("Run until second stop...")
+            logger.info("Run until second stop...")
             loss_to_reach = float(self.epochs_df["train_loss"].iloc[-1])
             self.run_until_second_stop()
             if (
@@ -302,7 +302,7 @@ class Experiment(object):
             ) and self.reset_after_second_run:
                 # if no valid loss was found below the best train loss on 1st
                 # run, reset model to the epoch with lowest valid_misclass
-                log.info(
+                logger.info(
                     "Resetting to best epoch {:d}".format(
                         self.rememberer.best_epoch
                     )
@@ -400,7 +400,7 @@ class Experiment(object):
             if len(inputs) > 0:
                 self.train_batch(inputs, targets)
         mid_time = time.time()
-        log.info(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
+        logger.info(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
 
         # ---- META-LEARNING LOOP (FOMAML with stateless fast-weights)
         if self.meta:
@@ -420,15 +420,15 @@ class Experiment(object):
             if self.n_meta_batches_per_epoch > 0:
                 mq = meta_q_loss_sum / self.n_meta_batches_per_epoch
                 ms = meta_s_loss_sum / self.n_meta_batches_per_epoch
-                log.info(f"[FOMAML] meta_query_loss={mq:.4f} | meta_support_loss={ms:.4f}")
+                logger.info(f"[FOMAML] meta_query_loss={mq:.4f} | meta_support_loss={ms:.4f}")
                 
 
         
 
         end_train_epoch_time = time.time()
-        log.info(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
+        logger.info(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
 
-        log.info("Time only for training updates: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
+        logger.info("Time only for training updates: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
 
         self.monitor_epoch(datasets)
         self.log_epoch()
@@ -870,7 +870,7 @@ class Experiment(object):
                 ),
             ]
         )
-        log.info("Train loss to reach {:.5f}".format(loss_to_reach))
+        logger.info("Train loss to reach {:.5f}".format(loss_to_reach))
 
         # save timing logs to file
         if self.log_timing:
@@ -880,6 +880,6 @@ class Experiment(object):
                 with open(f"{log_dir}/timing_logs.txt", "w") as f:
                     for timing_log_entry in timing_logs:
                         f.write(timing_log_entry + "\n")
-                log.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
+                logger.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
             except Exception as e:
-                log.warning(f"Could not save timing logs: {e}")
+                logger.warning(f"Could not save timing logs: {e}")
