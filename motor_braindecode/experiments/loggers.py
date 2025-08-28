@@ -72,15 +72,16 @@ class TensorboardWriter(Logger):
         Dictionary containing fold information like {'loso_fold': 1, 'cv_fold': 2}
     """
 
-    def __init__(self, log_dir, fold_info=None):
+    def __init__(self, log_dir):
         # import inside to prevent dependency of braindecode onto tensorboardX
         from tensorboardX import SummaryWriter
 
         self.writer = SummaryWriter(log_dir)
-        self.fold_info = fold_info or {}
+        self.fold_info = {}
 
-    def log_epoch(self, epochs_df):
+    def log_epoch(self, epochs_df, fold_info=None):
         # -1 due to doing one monitor at start of training
+        self.fold_info = fold_info or {}
         i_epoch = len(epochs_df) - 1
         last_row = epochs_df.iloc[-1]
         
