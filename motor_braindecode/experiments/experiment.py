@@ -876,10 +876,10 @@ class Experiment(object):
         if self.log_timing:
             try:
                 # Use config tensorboard path as default if outpath not set
-                log_dir = getattr(self, 'outpath', config.get('tensorboard_path', './results'))
+                log_dir = getattr(self, 'outpath', config.get('tensorboard_path', './runs'))
                 with open(f"{log_dir}/timing_logs.txt", "w") as f:
-                    for log_entry in timing_logs:
-                        f.write(log_entry + "\n")
+                    for timing_log_entry in timing_logs:
+                        f.write(timing_log_entry + "\n")
                 log.info(f"Timing logs saved to {log_dir}/timing_logs.txt")
             except Exception as e:
                 log.warning(f"Could not save timing logs: {e}")
