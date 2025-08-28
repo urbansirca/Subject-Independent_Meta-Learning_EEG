@@ -137,7 +137,8 @@ class BaseModel(object):
         inner_lr = 1e-3,
         n_tasks_per_meta_batch = 8,
         inner_steps = 5,
-        log_timing = False
+        log_timing = False,
+        fold_info = None
     ):
         """
         Fit the model using the given training data.
@@ -259,6 +260,8 @@ class BaseModel(object):
             self.monitors.extend(self.extra_monitors)
         self.monitors.append(RuntimeMonitor())
         self.monitors.append(MetaLearningMonitor())
+        
+        
         exp = Experiment(
             self.network,
             train_set,
@@ -275,11 +278,12 @@ class BaseModel(object):
             cuda=self.cuda,
             log_0_epoch=log_0_epoch,
             do_early_stop=(remember_best_column is not None),
-            meta = meta,
-            inner_lr = inner_lr,
-            n_tasks_per_meta_batch = n_tasks_per_meta_batch,
-            inner_steps = inner_steps,
-            log_timing = log_timing
+            meta=meta,
+            inner_lr=inner_lr,
+            n_tasks_per_meta_batch=n_tasks_per_meta_batch,
+            inner_steps=inner_steps,
+            log_timing=log_timing,
+            fold_info=fold_info  # Pass fold information
         )
         exp.run()
         self.epochs_df = exp.epochs_df

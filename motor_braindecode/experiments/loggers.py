@@ -15,13 +15,18 @@ class Printer(Logger):
     Prints output to the terminal using Python's logging module.
     """
 
-    def log_epoch(self, epochs_df):
+    def log_epoch(self, epochs_df, fold_info=None):
         # -1 due to doing one monitor at start of training
         i_epoch = len(epochs_df) - 1
         last_row = epochs_df.iloc[-1]
         
         # Create a comprehensive single-line log with all metrics
-        log_parts = [f"Epoch {i_epoch:3d}"]
+        log_parts = []
+
+        if fold_info:
+            log_parts.append(f"LOSO FOLD: {fold_info['loso_fold']} | CV FOLD: {fold_info['cv_fold']}")
+
+        log_parts.append(f"Epoch {i_epoch:3d}")
         
         # Add meta-learning metrics if available
         if "meta_support_loss" in last_row:
@@ -56,26 +61,46 @@ class Printer(Logger):
 
 
 class TensorboardWriter(Logger):
-
     """
-    Logs all values for tensorboard visualiuzation using tensorboardX.
+    Logs all values for tensorboard visualization using tensorboardX.
             
     Parameters
     ----------
     log_dir: string
         Directory path to log the output to
+    fold_info: dict, optional
+        Dictionary containing fold information like {'loso_fold': 1, 'cv_fold': 2}
     """
 
-    def __init__(self, log_dir):
+    def __init__(self, log_dir, fold_info=None):
         # import inside to prevent dependency of braindecode onto tensorboardX
         from tensorboardX import SummaryWriter
 
         self.writer = SummaryWriter(log_dir)
+        self.fold_info = fold_info or {}
 
     def log_epoch(self, epochs_df):
         # -1 due to doing one monitor at start of training
         i_epoch = len(epochs_df) - 1
         last_row = epochs_df.iloc[-1]
+        
         for key, val in last_row.items():
             val = last_row[key]
-            self.writer.add_scalar(key, val, i_epoch)
+            
+            # Create fold-specific metric names
+            if self.fold_info:
+                fold_suffix = self._create_fold_suffix()
+                metric_name = f"{key}/{fold_suffix}"
+            else:
+                metric_name = key
+                
+            self.writer.add_scalar(metric_name, val, i_epoch)
+    
+    def _create_fold_suffix(self):
+        """Create a descriptive suffix for the fold information."""
+        parts = []
+        if 'loso_fold' in self.fold_info:
+            parts.append(f"LOSO_{self.fold_info['loso_fold']}")
+        if 'cv_fold' in self.fold_info:
+            parts.append(f"CV_{self.fold_info['cv_fold']}")
+        return "_".join(parts) if parts else "fold"

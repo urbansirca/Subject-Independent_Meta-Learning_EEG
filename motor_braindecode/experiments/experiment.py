@@ -225,7 +225,8 @@ class Experiment(object):
         inner_lr = 1e-3,
         n_tasks_per_meta_batch = 8,
         inner_steps = 5,
-        log_timing = False
+        log_timing = False,
+        fold_info = None
     ):
         if run_after_early_stop or reset_after_second_run:
             assert do_early_stop == True, (
@@ -274,6 +275,7 @@ class Experiment(object):
         self.inner_lr = inner_lr
         self.task_source = "train"
         self.first_run = True
+        self.fold_info = fold_info or {}
 
 
     def run(self):
@@ -315,7 +317,7 @@ class Experiment(object):
         if self.do_early_stop:
             self.rememberer = RememberBest(self.remember_best_column)
         if self.loggers == ("print",):
-            self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"])]
+            self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"], fold_info=self.fold_info)]
         self.epochs_df = pd.DataFrame()
         if self.cuda:
             assert th.cuda.is_available(), "Cuda not available"
@@ -843,7 +845,7 @@ class Experiment(object):
         Print monitoring values for this epoch.
         """
         for logger in self.loggers:
-            logger.log_epoch(self.epochs_df)
+            logger.log_epoch(self.epochs_df, fold_info=self.fold_info)
 
     def setup_after_stop_training(self):
         """
