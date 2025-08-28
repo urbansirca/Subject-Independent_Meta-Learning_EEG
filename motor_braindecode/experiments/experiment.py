@@ -30,7 +30,7 @@ with open("config.yaml", "r") as f:
 
 
 log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+
 
 
 # global list to store timing logs

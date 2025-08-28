@@ -17,6 +17,7 @@ experiment:
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
+  tensorboard_path: "runs"
 
 model:
   type: Deep5Net
