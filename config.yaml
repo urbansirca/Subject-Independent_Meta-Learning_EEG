@@ -10,10 +10,11 @@ experiment:
   meta_learning_rate: 0.004
   n_tasks_per_meta_batch: 20 # Subjects for maml
   inner_steps: 20
-  n_folds: 10 #LOSO
-  kfold: 6 #CV
+  n_folds: 40 #LOSO
+  kfold: 4 #CV
   gpu: 0
   log_timing: true
+  run_after_early_stop: true
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders

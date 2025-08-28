@@ -78,6 +78,9 @@ parser.add_argument(
 parser.add_argument("--inner_steps", type=int, help="Number of inner steps")
 
 parser.add_argument("--log_timing", help="Log timing of functions", action="store_true")
+parser.add_argument(
+    "--run_after_early_stop", help="Run after early stop", action="store_true"
+)
 
 
 args = parser.parse_args()
@@ -101,6 +104,7 @@ final = {
     "kfold": args.kfold or config["kfold"],
     "log_timing": args.log_timing or config["log_timing"],
     "scheduler": config["scheduler"],
+    "run_after_early_stop": args.run_after_early_stop or config["run_after_early_stop"],
 }
 
 
@@ -114,6 +118,7 @@ META_LR = final["meta_lr"]
 N_TASKS_PER_META_BATCH = final["n_tasks_per_meta_batch"]
 N_INNER_STEPS = final["inner_steps"]
 
+run_after_early_stop = final["run_after_early_stop"]
 meta = final["meta"]
 log_timing = final["log_timing"]
 n_folds = final["n_folds"]  # number of subjects for training and testing LOSO
@@ -180,12 +185,12 @@ subjs = [
 
 # ---- Now use `final` dict everywhere ----
 dfile = h5py.File(final["datapath"], "r")
-outpath = final["outpath"]
-os.makedirs(outpath, exist_ok=True)
+experiment_dir = final["outpath"]
+os.makedirs(experiment_dir, exist_ok=True)
 # make a subfolder from hyperparameter values and date
-subfolder = f"meta_{meta}_lr_{LR}_meta_lr_{META_LR}_weight_decay_{WEIGHT_DECAY}_date_{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
-outpath = os.path.join(outpath, subfolder)
-os.makedirs(outpath, exist_ok=True)
+subfolder = f"experiment_epochs_{TRAIN_EPOCH}_{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
+experiment_dir = os.path.join(experiment_dir, subfolder)
+os.makedirs(experiment_dir, exist_ok=True)
 
 
 torch.cuda.set_device(final["gpu"])
@@ -198,7 +203,6 @@ torch.backends.cudnn.deterministic = True
 # print all the arguments
 print(final)
 
-print(f"Outpath: {outpath}")
 
 
 # Get data from single subject.
@@ -223,9 +227,9 @@ def get_multi_data(subjs):
 
 for loso_fold in range(n_folds):
     for cv_fold in range(kfold):
-        outpath = os.path.join(outpath, f"fold_{loso_fold}")
+        outpath = os.path.join(experiment_dir, f"fold_{loso_fold}")
         os.makedirs(outpath, exist_ok=True)
-        print(f"Outpath: {outpath}")
+        print(f"outpath to save: {outpath}")
 
         test_subj = subjs[loso_fold]
         cv_set = np.array(subjs[loso_fold + 1 :] + subjs[:loso_fold])
@@ -286,6 +290,7 @@ for loso_fold in range(n_folds):
                 n_tasks_per_meta_batch=N_TASKS_PER_META_BATCH,
                 inner_steps=N_INNER_STEPS,
                 fold_info={"loso_fold": loso_fold, "cv_fold": cv_index},
+                run_after_early_stop=run_after_early_stop,
             )
 
             rememberer = exp.rememberer

@@ -2,6 +2,7 @@ import time
 
 import numpy as np
 from numpy.random import RandomState
+from pandas.core.indexes.base import F
 import torch as th
 
 from motor_braindecode.experiments.monitors import (
@@ -131,6 +132,7 @@ class BaseModel(object):
         validation_data=None,
         model_constraint=None,
         remember_best_column=None,
+        run_after_early_stop=False,
         scheduler=None,
         log_0_epoch=True,
         meta = True,
@@ -274,7 +276,7 @@ class BaseModel(object):
             monitors=self.monitors,
             stop_criterion=stop_criterion,
             remember_best_column=remember_best_column,
-            run_after_early_stop=False,
+            run_after_early_stop=run_after_early_stop,
             cuda=self.cuda,
             log_0_epoch=log_0_epoch,
             do_early_stop=(remember_best_column is not None),
