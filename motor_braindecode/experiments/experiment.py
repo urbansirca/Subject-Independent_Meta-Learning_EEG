@@ -32,7 +32,12 @@ except FileNotFoundError:
     config = {"tensorboard_path": "./runs"}
 
 logger = logging.getLogger(__name__)
-
+logger.setLevel(logging.INFO)
+if not logger.handlers:  # avoid duplicate logs if imported twice
+    _h = logging.StreamHandler(sys.stdout)
+    _h.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s"))
+    logger.addHandler(_h)
+    logger.propagate = False
 
 
 # global list to store timing logs

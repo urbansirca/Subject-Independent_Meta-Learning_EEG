@@ -206,7 +206,6 @@ for fold in range(len(subjs)):
                         input_time_length=train_set.X.shape[2],
                         final_conv_length='auto').cuda()
 
-        print(f"model created: {model}")        # these are good values for the deep model
         optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
         model.compile(loss=F.nll_loss, optimizer=optimizer, iterator_seed=1, )
 
