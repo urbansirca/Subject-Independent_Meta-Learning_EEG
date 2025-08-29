@@ -859,6 +859,21 @@ class Experiment(object):
         for m in self.monitors:
             row_dict.update(result_dicts_per_monitor[m])
 
+        # Add learning rate columns BEFORE the assertion check
+        # Handle both regular optimizers and ScheduledOptimizer
+        if hasattr(self.optimizer, "optimizer"):
+            # This is a ScheduledOptimizer, access the underlying optimizer
+            current_lr = self.optimizer.optimizer.param_groups[0]["lr"]
+        else:
+            # This is a regular optimizer
+            current_lr = self.optimizer.param_groups[0]["lr"]
+
+        row_dict["scheduled_learning_rate"] = current_lr
+
+        # Add meta learning rate if available
+        if hasattr(self, "inner_lr"):
+            row_dict["meta_learning_rate"] = self.inner_lr
+
         # Use concat instead of deprecated append
         if len(self.epochs_df) == 0:
             self.epochs_df = pd.DataFrame([row_dict])
@@ -877,24 +892,7 @@ class Experiment(object):
         """
         Print monitoring values for this epoch.
         """
-        # Add the CURRENT scheduled learning rate to the epochs dataframe
-        # Handle both regular optimizers and ScheduledOptimizer
-        if hasattr(self.optimizer, "optimizer"):
-            # This is a ScheduledOptimizer, access the underlying optimizer
-            current_lr = self.optimizer.optimizer.param_groups[0]["lr"]
-        else:
-            # This is a regular optimizer
-            current_lr = self.optimizer.param_groups[0]["lr"]
-
-        self.epochs_df.loc[len(self.epochs_df) - 1, "scheduled_learning_rate"] = (
-            current_lr
-        )
-
-        # Add meta learning rate if available
-        if hasattr(self, "inner_lr"):
-            self.epochs_df.loc[len(self.epochs_df) - 1, "meta_learning_rate"] = (
-                self.inner_lr
-            )
+        # Learning rates are now added in monitor_epoch(), so no need to add them here
 
         for logger in self.loggers:
             print(f"Calling logger: {type(logger).__name__}")
