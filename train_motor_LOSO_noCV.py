@@ -236,8 +236,8 @@ for loso_fold in range(n_folds):
     cv_set = np.array(subjs[loso_fold + 1 :] + subjs[:loso_fold])
 
     # get 90% of the data for training and 10% for validation
-    train_subjs = cv_set[: int(len(cv_set) * 0.9)]
-    valid_subjs = cv_set[int(len(cv_set) * 0.9) :]
+    train_subjs = cv_set[: int(len(cv_set) * 0.95)]
+    valid_subjs = cv_set[int(len(cv_set) * 0.95) :]
     X_train, Y_train = get_multi_data(train_subjs)
     X_val, Y_val = get_multi_data(valid_subjs)
     X_test, Y_test = get_data(test_subj)

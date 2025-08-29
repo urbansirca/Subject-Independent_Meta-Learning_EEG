@@ -2,7 +2,7 @@
 experiment:
   meta: true
   batch_size: 1024
-  train_epoch: 50
+  train_epoch: 400
   learning_rate: 0.01
   weight_decay: 0.0025
   scheduler: "cosine"
@@ -10,7 +10,7 @@ experiment:
   meta_learning_rate: 0.01
   n_tasks_per_meta_batch: 20 # Subjects for maml
   inner_steps: 5
-  n_folds: 10 #LOSO
+  n_folds: 54 #LOSO
   kfold: 3 #CV
   gpu: 0
   log_timing: false
@@ -18,4 +18,4 @@ experiment:
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
-  tensorboard_path: "runs"
+  tensorboard_path: "full_run"
