@@ -527,20 +527,55 @@ class PerSubjectMonitor(object):
 
         # Compute per-subject metrics
         per_subject_metrics = {}
-        for subject_id in set(subject_ids):
-            # Get predictions and targets for this subject
-            subject_mask = [i for i, sid in enumerate(subject_ids) if sid == subject_id]
-            if not subject_mask:
-                continue
 
-            subject_preds = all_preds[0][subject_mask]  # Remove batch dimension
-            subject_targets = all_targets[subject_mask]
+        try:
+            # Flatten predictions and targets across all batches
+            if len(all_preds) > 0 and len(all_targets) > 0:
+                all_predictions = np.concatenate(all_preds, axis=0)
+                all_targets_flat = np.concatenate(all_targets, axis=0)
 
-            # Compute accuracy for this subject
-            subject_accuracy = self._compute_accuracy(subject_preds, subject_targets)
-            per_subject_metrics[f"valid_accuracy/subject_{subject_id}"] = (
-                subject_accuracy
+                # Verify shapes match
+                if len(all_predictions) != len(all_targets_flat):
+                    print(
+                        f"Warning: Predictions shape {all_predictions.shape} doesn't match targets shape {all_targets_flat.shape}"
+                    )
+                    return None
+
+                if len(all_predictions) != len(subject_ids):
+                    print(
+                        f"Warning: Predictions length {len(all_predictions)} doesn't match subject_ids length {len(subject_ids)}"
+                    )
+                    return None
+
+                # Compute per-subject metrics
+                for subject_id in set(subject_ids):
+                    subject_mask = [
+                        i for i, sid in enumerate(subject_ids) if sid == subject_id
+                    ]
+                    if not subject_mask:
+                        continue
+
+                    subject_preds = all_predictions[subject_mask]
+                    subject_targets = all_targets_flat[subject_mask]
+
+                    # Compute accuracy for this subject
+                    subject_accuracy = self._compute_accuracy(
+                        subject_preds, subject_targets
+                    )
+                    per_subject_metrics[f"valid_accuracy/subject_{subject_id}"] = (
+                        subject_accuracy
+                    )
+
+        except Exception as e:
+            print(f"Error in PerSubjectMonitor: {e}")
+            print(
+                f"all_preds shape: {[p.shape for p in all_preds] if all_preds else 'None'}"
             )
+            print(
+                f"all_targets shape: {[t.shape for t in all_targets] if all_targets else 'None'}"
+            )
+            print(f"subject_ids length: {len(subject_ids) if subject_ids else 'None'}")
+            return None
 
         # Store for this epoch
         self.epoch_metrics.update(per_subject_metrics)
