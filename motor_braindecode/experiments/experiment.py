@@ -24,41 +24,44 @@ except ImportError:
     from torch.nn.utils.stateless import functional_call
 
 
-
 # global list to store timing logs
 
-with open('config.yaml', 'r') as f:
+with open("config.yaml", "r") as f:
     config = yaml.safe_load(f)["experiment"]
 
 timing_logs = []
+
+
 def time_function(func):
     """Decorator to time function execution and log the duration."""
+
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         # Check if timing should be logged by looking at the first argument (self)
         should_log = False
-        if args and hasattr(args[0], 'log_timing'):
+        if args and hasattr(args[0], "log_timing"):
             should_log = args[0].log_timing
-        
+
         start_time = time.time()
         result = func(*args, **kwargs)
         end_time = time.time()
         duration = end_time - start_time
-        
+
         if should_log:
             # Use print for timing logs since we're not setting up logging here
             print(f"[TIMING] {func.__name__} took {duration:.4f} seconds")
             # add log to global list
             global timing_logs
             timing_logs.append(f"{func.__name__}: {duration:.4f} seconds")
-        
+
         return result
+
     return wrapper
 
 
 class RememberBest(object):
     """
-    Class to remember and restore 
+    Class to remember and restore
     the parameters of the model and the parameters of the
     optimizer at the epoch with the best performance.
 
@@ -67,7 +70,7 @@ class RememberBest(object):
     column_name: str
         The lowest value in this column should indicate the epoch with the
         best performance (e.g. misclass might make sense).
-        
+
     Attributes
     ----------
     best_epoch: int
@@ -85,7 +88,7 @@ class RememberBest(object):
         """
         Remember this epoch: Remember parameter values in case this epoch
         has the best performance so far.
-        
+
         Parameters
         ----------
         epochs_df: `pandas.Dataframe`
@@ -102,18 +105,16 @@ class RememberBest(object):
             self.lowest_val = current_val
             self.model_state_dict = deepcopy(model.state_dict())
             self.optimizer_state_dict = deepcopy(optimizer.state_dict())
-            print(
-                "New best {:s}: {:5f}".format(self.column_name, current_val)
-            )
+            print("New best {:s}: {:5f}".format(self.column_name, current_val))
             print("")
 
     def reset_to_best_model(self, epochs_df, model, optimizer):
         """
-        Reset parameters to parameters at best epoch and remove rows 
+        Reset parameters to parameters at best epoch and remove rows
         after best epoch from epochs dataframe.
-        
+
         Modifies parameters of model and optimizer, changes epochs_df in-place.
-        
+
         Parameters
         ----------
         epochs_df: `pandas.Dataframe`
@@ -132,9 +133,9 @@ class Experiment(object):
     Class that performs one experiment on training, validation and test set.
 
     It trains as follows:
-    
+
     1. Train on training set until a given stop criterion is fulfilled
-    2. Reset to the best epoch, i.e. reset parameters of the model and the 
+    2. Reset to the best epoch, i.e. reset parameters of the model and the
        optimizer to the state at the best epoch ("best" according to a given
        criterion)
     3. Continue training on the combined training + validation set until the
@@ -149,14 +150,14 @@ class Experiment(object):
     valid_set: :class:`.SignalAndTarget`
     test_set: :class:`.SignalAndTarget`
     iterator: iterator object
-    loss_function: function 
-        Function mapping predictions and targets to a loss: 
-        (predictions: `torch.autograd.Variable`, 
+    loss_function: function
+        Function mapping predictions and targets to a loss:
+        (predictions: `torch.autograd.Variable`,
         targets:`torch.autograd.Variable`)
         -> loss: `torch.autograd.Variable`
     optimizer: `torch.optim.Optimizer`
     model_constraint: object
-        Object with apply function that takes model and constraints its 
+        Object with apply function that takes model and constraints its
         parameters. `None` for no constraint.
     monitors: list of objects
         List of objects with monitor_epoch and monitor_set method, should
@@ -190,7 +191,7 @@ class Experiment(object):
         start of training.
     loggers: list of :class:`.Logger`
         How to show computed metrics.
-        
+
     Attributes
     ----------
     epochs_df: `pandas.DataFrame`
@@ -219,12 +220,12 @@ class Experiment(object):
         reset_after_second_run=False,
         log_0_epoch=True,
         loggers=("print",),
-        meta = True,
-        inner_lr = 1e-3,
-        n_tasks_per_meta_batch = 8,
-        inner_steps = 5,
-        log_timing = False,
-        fold_info = None
+        meta=True,
+        inner_lr=1e-3,
+        n_tasks_per_meta_batch=8,
+        inner_steps=5,
+        log_timing=False,
+        fold_info=None,
     ):
         if run_after_early_stop or reset_after_second_run:
             assert do_early_stop == True, (
@@ -268,13 +269,12 @@ class Experiment(object):
         self.log_timing = log_timing
         self.meta = meta
         self.n_tasks_per_meta_batch = n_tasks_per_meta_batch
-        self.n_meta_batches_per_epoch =  max(1, 54 // self.n_tasks_per_meta_batch)
+        self.n_meta_batches_per_epoch = max(1, 54 // self.n_tasks_per_meta_batch)
         self.inner_steps = inner_steps
         self.inner_lr = inner_lr
         self.task_source = "train"
         self.first_run = True
         self.fold_info = fold_info or {}
-
 
     def run(self):
         """
@@ -297,11 +297,7 @@ class Experiment(object):
             ) and self.reset_after_second_run:
                 # if no valid loss was found below the best train loss on 1st
                 # run, reset model to the epoch with lowest valid_misclass
-                print(
-                    "Resetting to best epoch {:d}".format(
-                        self.rememberer.best_epoch
-                    )
-                )
+                print("Resetting to best epoch {:d}".format(self.rememberer.best_epoch))
                 self.rememberer.reset_to_best_model(
                     self.epochs_df, self.model, self.optimizer
                 )
@@ -314,12 +310,15 @@ class Experiment(object):
         # reset remember best extension in case you rerun some experiment
         if self.do_early_stop:
             self.rememberer = RememberBest(self.remember_best_column)
-        
+
         # Fix: More robust logger initialization
         if self.loggers is None or self.loggers == ("print",) or len(self.loggers) == 0:
-            self.loggers = [Printer(), TensorboardWriter(log_dir=config["tensorboard_path"])]
+            self.loggers = [
+                Printer(),
+                TensorboardWriter(log_dir=config["tensorboard_path"]),
+            ]
             print("Initialized default loggers: Printer and TensorboardWriter")
-        
+
         self.epochs_df = pd.DataFrame()
         if self.cuda:
             assert th.cuda.is_available(), "Cuda not available"
@@ -334,17 +333,15 @@ class Experiment(object):
 
     def run_until_second_stop(self):
         """
-        Run training and evaluation using combined training + validation set 
-        for training. 
-        
-        Runs until loss on validation  set decreases below loss on training set 
-        of best epoch or  until as many epochs trained after as before 
+        Run training and evaluation using combined training + validation set
+        for training.
+
+        Runs until loss on validation  set decreases below loss on training set
+        of best epoch or  until as many epochs trained after as before
         first stop.
         """
         datasets = self.datasets
-        datasets["train"] = concatenate_sets(
-            [datasets["train"], datasets["valid"]]
-        )
+        datasets["train"] = concatenate_sets([datasets["train"], datasets["valid"]])
 
         self.run_until_stop(datasets, remember_best=True)
 
@@ -352,7 +349,7 @@ class Experiment(object):
         """
         Run training and evaluation on given datasets until stop criterion is
         fulfilled.
-        
+
         Parameters
         ----------
         datasets: OrderedDict
@@ -369,16 +366,15 @@ class Experiment(object):
                     self.epochs_df, self.model, self.optimizer
                 )
 
-        self.iterator.reset_rng() # reset random number generator
+        self.iterator.reset_rng()  # reset random number generator
         while not self.stop_criterion.should_stop(self.epochs_df):
             self.run_one_epoch(datasets, remember_best)
-
 
     def run_one_epoch(self, datasets, remember_best):
         """
         Run training and evaluation on given datasets for one epoch.
         First, run normal training loop. Then, run meta-learning loop.
-        
+
         Parameters
         ----------
         datasets: OrderedDict
@@ -397,12 +393,14 @@ class Experiment(object):
             if len(inputs) > 0:
                 self.train_batch(inputs, targets)
         mid_time = time.time()
-        print(f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s")
+        print(
+            f"Time for NORMAL training loop: {mid_time - start_train_epoch_time:.2f}s"
+        )
 
         # ---- META-LEARNING LOOP (FOMAML with stateless fast-weights)
         meta_support_loss = 0.0
         meta_query_loss = 0.0
-        
+
         if self.meta:
             # micro-opt: reuse RNG, use running sums (not lists), cheap logging
             rng = getattr(self.iterator, "rng", None)
@@ -420,17 +418,23 @@ class Experiment(object):
             if self.n_meta_batches_per_epoch > 0:
                 meta_support_loss = meta_s_loss_sum / self.n_meta_batches_per_epoch
                 meta_query_loss = meta_q_loss_sum / self.n_meta_batches_per_epoch
-                print(f"[FOMAML] meta_query_loss={meta_query_loss:.4f} | meta_support_loss={meta_support_loss:.4f}")
-                
+                print(
+                    f"[FOMAML] meta_query_loss={meta_query_loss:.4f} | meta_support_loss={meta_support_loss:.4f}"
+                )
+
         # Update meta-learning monitor with the losses
         for monitor in self.monitors:
-            if hasattr(monitor, 'update_meta_losses'):
+            if hasattr(monitor, "update_meta_losses"):
                 monitor.update_meta_losses(meta_support_loss, meta_query_loss)
 
         end_train_epoch_time = time.time()
         print(f"Time for META-LEARNING loop: {end_train_epoch_time - mid_time:.2f}s")
 
-        print("Time for NORMAL + META-LEARNING: {:.2f}s".format(end_train_epoch_time - start_train_epoch_time))
+        print(
+            "Time for NORMAL + META-LEARNING: {:.2f}s".format(
+                end_train_epoch_time - start_train_epoch_time
+            )
+        )
 
         self.monitor_epoch(datasets)
         self.log_epoch()
@@ -462,16 +466,22 @@ class Experiment(object):
         assert N % SAMPLES_PER_SUBJECT == 0, f"Dataset length {N} not divisible by 400"
 
         # sample task subjects without replacement
-        task_ids = rng.choice(np.arange(n_subjects), size=self.n_tasks_per_meta_batch, replace=False)
+        task_ids = rng.choice(
+            np.arange(n_subjects), size=self.n_tasks_per_meta_batch, replace=False
+        )
 
         # Trainable (LoRA-safe) base parameters, aligned by NAME
-        named_base_params = [(n, p) for (n, p) in self.model.named_parameters() if p.requires_grad]
+        named_base_params = [
+            (n, p) for (n, p) in self.model.named_parameters() if p.requires_grad
+        ]
         base_names = [n for n, _ in named_base_params]
         name_to_param = dict(self.model.named_parameters())
 
         # Accumulate averaged meta-grads by name, on the correct device
-        meta_grads = {n: th.zeros_like(name_to_param[n], device=name_to_param[n].device)
-                    for n, _ in named_base_params}
+        meta_grads = {
+            n: th.zeros_like(name_to_param[n], device=name_to_param[n].device)
+            for n, _ in named_base_params
+        }
 
         # Light logging accumulators
         support_loss_sum = 0.0
@@ -483,12 +493,21 @@ class Experiment(object):
         for task_num, sid in enumerate(task_ids, 1):
             subj_start = sid * SAMPLES_PER_SUBJECT
             # Four contiguous 100-trial runs
-            run_ranges = [np.arange(subj_start + r * RUN_SIZE, subj_start + (r + 1) * RUN_SIZE) for r in range(N_RUNS)]
+            run_ranges = [
+                np.arange(subj_start + r * RUN_SIZE, subj_start + (r + 1) * RUN_SIZE)
+                for r in range(N_RUNS)
+            ]
 
             # RandomState vs Generator: randint vs integers
-            q_run = int(rng.integers(0, N_RUNS)) if hasattr(rng, "integers") else int(rng.randint(0, N_RUNS))
+            q_run = (
+                int(rng.integers(0, N_RUNS))
+                if hasattr(rng, "integers")
+                else int(rng.randint(0, N_RUNS))
+            )
             query_idx = run_ranges[q_run]
-            support_pool = np.concatenate([run_ranges[r] for r in range(N_RUNS) if r != q_run])  # 300 trials
+            support_pool = np.concatenate(
+                [run_ranges[r] for r in range(N_RUNS) if r != q_run]
+            )  # 300 trials
             supp_idx = rng.choice(support_pool, size=K_SUPPORT, replace=False)
 
             # Fetch arrays and add channel-last singleton if needed
@@ -503,8 +522,10 @@ class Experiment(object):
             xq_var = np_to_var(Xq, pin_memory=self.pin_memory)
             yq_var = np_to_var(Yq, pin_memory=self.pin_memory)
             if self.cuda:
-                xs_var = xs_var.cuda(); ys_var = ys_var.cuda()
-                xq_var = xq_var.cuda(); yq_var = yq_var.cuda()
+                xs_var = xs_var.cuda()
+                ys_var = ys_var.cuda()
+                xq_var = xq_var.cuda()
+                yq_var = yq_var.cuda()
 
             # ---- fast weights: LEAF tensors that require grad, aligned by NAME
             fast_params = OrderedDict(
@@ -529,12 +550,16 @@ class Experiment(object):
                 )
 
                 # SGD update: w' = w - alpha*g ; re-leaf to avoid graph growth
-                for n, w, g in zip(base_names, (fast_params[n] for n in base_names), grads):
+                for n, w, g in zip(
+                    base_names, (fast_params[n] for n in base_names), grads
+                ):
                     if g is None:
                         # param not used in this forward; treat grad as zero
                         fast_params[n] = w.detach().requires_grad_(True)
                     else:
-                        fast_params[n] = (w - inner_lr * g).detach().requires_grad_(True)
+                        fast_params[n] = (
+                            (w - inner_lr * g).detach().requires_grad_(True)
+                        )
 
                 if step == inner_steps - 1:
                     support_loss_sum += float(loss_s.detach().item())
@@ -577,8 +602,16 @@ class Experiment(object):
         if self.model_constraint is not None:
             self.model_constraint.apply(self.model)
 
-        mean_support = support_loss_sum / float(self.n_tasks_per_meta_batch) if self.n_tasks_per_meta_batch > 0 else 0.0
-        mean_query = query_loss_sum / float(self.n_tasks_per_meta_batch) if self.n_tasks_per_meta_batch > 0 else 0.0
+        mean_support = (
+            support_loss_sum / float(self.n_tasks_per_meta_batch)
+            if self.n_tasks_per_meta_batch > 0
+            else 0.0
+        )
+        mean_query = (
+            query_loss_sum / float(self.n_tasks_per_meta_batch)
+            if self.n_tasks_per_meta_batch > 0
+            else 0.0
+        )
         return {
             "meta_support_loss": mean_support,
             "meta_query_loss": mean_query,
@@ -588,7 +621,6 @@ class Experiment(object):
             "inner_steps": int(inner_steps),
         }
 
-
     def meta_loss(self, datasets):
         overall_loss = 0
         # batch_generator = self.iterator.get_batches(
@@ -597,10 +629,10 @@ class Experiment(object):
         # for inputs, targets in batch_generator:
         #     print(inputs.shape)
 
-        for i in range(0,int(len(self.valid_set_meta.X)/400)):
-            inputs = self.valid_set_meta.X[i*400:i*400 + 5]
-            targets =self.valid_set_meta.y[i*400:i*400 + 5]
-            inputs = inputs[:,:,:,np.newaxis]
+        for i in range(0, int(len(self.valid_set_meta.X) / 400)):
+            inputs = self.valid_set_meta.X[i * 400 : i * 400 + 5]
+            targets = self.valid_set_meta.y[i * 400 : i * 400 + 5]
+            inputs = inputs[:, :, :, np.newaxis]
             self.model.train()
             # print(inputs.shape)
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
@@ -617,9 +649,9 @@ class Experiment(object):
             self.optimizer.step()
 
             self.model.eval()
-            inputs = self.valid_set_meta.X[i*400 + 300:(i+1)*400]
-            targets =self.valid_set_meta.y[i*400 + 300:(i+1)*400]
-            inputs = inputs[:,:,:,np.newaxis]
+            inputs = self.valid_set_meta.X[i * 400 + 300 : (i + 1) * 400]
+            targets = self.valid_set_meta.y[i * 400 + 300 : (i + 1) * 400]
+            inputs = inputs[:, :, :, np.newaxis]
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
             if self.cuda:
@@ -667,18 +699,18 @@ class Experiment(object):
         #         meta_loss = meta_loss + self.model_loss_function(self.model)
 
         #     overall_loss += meta_loss
-        
+
         self.model.train()
         overall_loss.backward()
         self.optimizer.step()
         if self.model_constraint is not None:
-            self.model_constraint.apply(self.model)        
+            self.model_constraint.apply(self.model)
 
     ## Change this for meta learning
     def train_batch(self, inputs, targets):
         """
         Train on given inputs and targets.
-        
+
         Parameters
         ----------
         inputs: `torch.autograd.Variable`
@@ -689,7 +721,6 @@ class Experiment(object):
         input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
         target_vars = np_to_var(targets, pin_memory=self.pin_memory)
 
-        
         if self.cuda:
             input_vars = input_vars.cuda()
             target_vars = target_vars.cuda()
@@ -698,16 +729,16 @@ class Experiment(object):
         loss = self.loss_function(outputs, target_vars)
         if self.model_loss_function is not None:
             loss = loss + self.model_loss_function(self.model)
-        
+
         loss.backward()
         self.optimizer.step()
         if self.model_constraint is not None:
             self.model_constraint.apply(self.model)
-            
+
     def eval_on_batch(self, inputs, targets):
         """
         Evaluate given inputs and targets.
-        
+
         Parameters
         ----------
         inputs: `torch.autograd.Variable`
@@ -722,35 +753,34 @@ class Experiment(object):
         with th.no_grad():  # OPTIMIZATION: Ensure no gradients computed
             input_vars = np_to_var(inputs, pin_memory=self.pin_memory)
             target_vars = np_to_var(targets, pin_memory=self.pin_memory)
-            
-        
+
             # OPTIMIZATION: Move to GPU only once
             if self.cuda:
                 input_vars = input_vars.cuda()
                 target_vars = target_vars.cuda()
-            
+
             # Forward pass
             outputs = self.model(input_vars)
             loss = self.loss_function(outputs, target_vars)
-            
+
             # OPTIMIZATION: Convert to numpy efficiently
             if hasattr(outputs, "cpu"):
                 outputs = outputs.cpu().detach().numpy()
             else:
                 # assume it is iterable
                 outputs = [o.cpu().detach().numpy() for o in outputs]
-            
+
             # OPTIMIZATION: Convert loss to numpy efficiently
             loss = loss.cpu().detach().numpy()
-            
+
         return outputs, loss
 
     def monitor_epoch(self, datasets):
         """
         Evaluate one epoch for given datasets.
-        
+
         Stores results in `epochs_df`
-        
+
         Parameters
         ----------
         datasets: OrderedDict
@@ -764,14 +794,14 @@ class Experiment(object):
             result_dict = m.monitor_epoch()
             if result_dict is not None:
                 result_dicts_per_monitor[m].update(result_dict)
-        
+
         for setname in datasets:
             assert setname in ["train", "valid", "test"]
             dataset = datasets[setname]
-            
+
             # OPTIMIZATION 1: Get batch generator once and check length efficiently
             batch_generator = self.iterator.get_batches(dataset, shuffle=False)
-            
+
             # Try to get length without iteration
             if hasattr(batch_generator, "__len__"):
                 n_batches = len(batch_generator)
@@ -779,38 +809,38 @@ class Experiment(object):
                 # Only iterate once if absolutely necessary
                 n_batches = sum(1 for _ in batch_generator)
                 batch_generator = self.iterator.get_batches(dataset, shuffle=False)
-            
+
             # OPTIMIZATION 2: Use lists instead of pre-allocated arrays
             all_preds_list = []
             all_targets_list = []
             all_losses = []
             all_batch_sizes = []
-            
+
             # OPTIMIZATION 3: Batch GPU operations and minimize data movement
             self.model.eval()  # Ensure model is in eval mode
-            
+
             for inputs, targets in batch_generator:
                 # Process batch
                 preds, loss = self.eval_on_batch(inputs, targets)
-                
+
                 # Store results directly in lists (no pre-allocation)
                 all_preds_list.append(preds)
                 all_targets_list.append(targets)
                 all_losses.append(loss)
                 all_batch_sizes.append(len(targets))
-            
+
             # OPTIMIZATION 4: Concatenate efficiently without nan handling
             if all_preds_list:
                 # Concatenate all predictions and targets
                 all_preds = np.concatenate(all_preds_list, axis=0)
                 all_targets = np.concatenate(all_targets_list, axis=0)
-                
+
                 # Add batch dimension as expected by monitors
                 all_preds = all_preds[np.newaxis, :]
                 all_targets = all_targets[np.newaxis, :]
                 all_batch_sizes = [sum(all_batch_sizes)]
                 all_losses = [all_losses]
-                
+
                 # Pass to monitors
                 for m in self.monitors:
                     result_dict = m.monitor_set(
@@ -823,36 +853,48 @@ class Experiment(object):
                     )
                     if result_dict is not None:
                         result_dicts_per_monitor[m].update(result_dict)
-        
+
         # Update epochs dataframe
         row_dict = OrderedDict()
         for m in self.monitors:
             row_dict.update(result_dicts_per_monitor[m])
-        
+
         # Use concat instead of deprecated append
         if len(self.epochs_df) == 0:
             self.epochs_df = pd.DataFrame([row_dict])
         else:
-            self.epochs_df = pd.concat([self.epochs_df, pd.DataFrame([row_dict])], ignore_index=True)
-        
+            self.epochs_df = pd.concat(
+                [self.epochs_df, pd.DataFrame([row_dict])], ignore_index=True
+            )
+
         # Ensure column consistency
         assert set(self.epochs_df.columns) == set(row_dict.keys()), (
             "Columns of dataframe: {:s}\n and keys of dict {:s} not same"
         ).format(str(set(self.epochs_df.columns)), str(set(row_dict.keys())))
         self.epochs_df = self.epochs_df[list(row_dict.keys())]
 
-
     def log_epoch(self):
         """
         Print monitoring values for this epoch.
         """
         # Add the CURRENT scheduled learning rate to the epochs dataframe
-        current_lr = self.optimizer.param_groups[0]['lr']
-        self.epochs_df.loc[len(self.epochs_df)-1, 'scheduled_learning_rate'] = current_lr
-        
+        # Handle both regular optimizers and ScheduledOptimizer
+        if hasattr(self.optimizer, "optimizer"):
+            # This is a ScheduledOptimizer, access the underlying optimizer
+            current_lr = self.optimizer.optimizer.param_groups[0]["lr"]
+        else:
+            # This is a regular optimizer
+            current_lr = self.optimizer.param_groups[0]["lr"]
+
+        self.epochs_df.loc[len(self.epochs_df) - 1, "scheduled_learning_rate"] = (
+            current_lr
+        )
+
         # Add meta learning rate if available
-        if hasattr(self, 'inner_lr'):
-            self.epochs_df.loc[len(self.epochs_df)-1, 'meta_learning_rate'] = self.inner_lr
+        if hasattr(self, "inner_lr"):
+            self.epochs_df.loc[len(self.epochs_df) - 1, "meta_learning_rate"] = (
+                self.inner_lr
+            )
 
         for logger in self.loggers:
             print(f"Calling logger: {type(logger).__name__}")
@@ -860,23 +902,19 @@ class Experiment(object):
 
     def setup_after_stop_training(self):
         """
-        Setup training after first stop. 
-        
+        Setup training after first stop.
+
         Resets parameters to best parameters and updates stop criterion.
         """
         # also remember old monitor chans, will be put back into
         # monitor chans after experiment finished
         self.before_stop_df = deepcopy(self.epochs_df)
-        self.rememberer.reset_to_best_model(
-            self.epochs_df, self.model, self.optimizer
-        )
+        self.rememberer.reset_to_best_model(self.epochs_df, self.model, self.optimizer)
         loss_to_reach = float(self.epochs_df["train_loss"].iloc[-1])
         self.stop_criterion = Or(
             stop_criteria=[
                 MaxEpochs(max_epochs=self.rememberer.best_epoch * 2),
-                ColumnBelow(
-                    column_name="valid_loss", target_value=loss_to_reach
-                ),
+                ColumnBelow(column_name="valid_loss", target_value=loss_to_reach),
             ]
         )
         print("Train loss to reach {:.5f}".format(loss_to_reach))
@@ -885,7 +923,7 @@ class Experiment(object):
         if self.log_timing:
             try:
                 # Use default path if outpath not set
-                log_dir = getattr(self, 'outpath', './results')
+                log_dir = getattr(self, "outpath", "./results")
                 with open(f"{log_dir}/timing_logs.txt", "w") as f:
                     for timing_log_entry in timing_logs:
                         f.write(timing_log_entry + "\n")
