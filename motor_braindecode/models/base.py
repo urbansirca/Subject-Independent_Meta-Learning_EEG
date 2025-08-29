@@ -14,6 +14,7 @@ from motor_braindecode.experiments.monitors import (
     compute_trial_labels_from_crop_preds,
     compute_pred_labels_from_trial_preds,
     compute_preds_per_trial_from_crops,
+    PerSubjectMonitor,
 )
 from motor_braindecode.experiments.stopcriteria import MaxEpochs
 from motor_braindecode.datautil.iterators import (
@@ -56,7 +57,7 @@ class BaseModel(object):
     def parameters(self):
         """
         Return parameters of underlying torch model.
-    
+
         Returns
         -------
         parameters: list of torch tensors
@@ -80,7 +81,7 @@ class BaseModel(object):
     ):
         """
         Setup training for this model.
-        
+
         Parameters
         ----------
         loss: function (predictions, targets) -> torch scalar
@@ -135,19 +136,19 @@ class BaseModel(object):
         run_after_early_stop=False,
         scheduler=None,
         log_0_epoch=True,
-        meta = True,
-        inner_lr = 1e-3,
-        n_tasks_per_meta_batch = 8,
-        inner_steps = 5,
-        log_timing = False,
-        fold_info = None
+        meta=True,
+        inner_lr=1e-3,
+        n_tasks_per_meta_batch=8,
+        inner_steps=5,
+        log_timing=False,
+        fold_info=None,
     ):
         """
         Fit the model using the given training data.
-        
+
         Will set `epochs_df` variable with a pandas dataframe to the history
         of the training process.
-        
+
         Parameters
         ----------
         train_X: ndarray
@@ -158,7 +159,7 @@ class BaseModel(object):
             Number of epochs to train
         batch_size: int
         input_time_length: int, optional
-            Super crop size, what temporal size is pushed forward through 
+            Super crop size, what temporal size is pushed forward through
             the network, see cropped decoding tuturial.
         validation_data: (ndarray, 1darray), optional
             X and y for validation set if wanted
@@ -175,7 +176,7 @@ class BaseModel(object):
 
         Returns
         -------
-        exp: 
+        exp:
             Underlying braindecode :class:`.Experiment`
         """
         if (not hasattr(self, "compiled")) or (not self.compiled):
@@ -195,8 +196,7 @@ class BaseModel(object):
             self.network.eval()
             test_input = np_to_var(
                 np.ones(
-                    (1, train_X[0].shape[0], input_time_length)
-                    + train_X[0].shape[2:],
+                    (1, train_X[0].shape[0], input_time_length) + train_X[0].shape[2:],
                     dtype=np.float32,
                 )
             )
@@ -224,9 +224,7 @@ class BaseModel(object):
         train_set = SignalAndTarget(train_X, train_y)
         optimizer = self.optimizer
         if scheduler is not None:
-            assert (
-                scheduler == "cosine"
-            ), "Supply either 'cosine' or None as scheduler."
+            assert scheduler == "cosine", "Supply either 'cosine' or None as scheduler."
             n_updates_per_epoch = sum(
                 [1 for _ in self.iterator.get_batches(train_set, shuffle=True)]
             )
@@ -262,8 +260,8 @@ class BaseModel(object):
             self.monitors.extend(self.extra_monitors)
         self.monitors.append(RuntimeMonitor())
         self.monitors.append(MetaLearningMonitor())
-        
-        
+        self.monitors.append(PerSubjectMonitor())
+
         exp = Experiment(
             self.network,
             train_set,
@@ -285,7 +283,7 @@ class BaseModel(object):
             n_tasks_per_meta_batch=n_tasks_per_meta_batch,
             inner_steps=inner_steps,
             log_timing=log_timing,
-            fold_info=fold_info  # Pass fold information
+            fold_info=fold_info,  # Pass fold information
         )
         exp.run()
         self.epochs_df = exp.epochs_df
@@ -294,7 +292,7 @@ class BaseModel(object):
     def evaluate(self, X, y):
         """
         Evaluate, i.e., compute metrics on given inputs and targets.
-        
+
         Parameters
         ----------
         X: ndarray
@@ -340,7 +338,6 @@ class BaseModel(object):
             cuda=self.cuda,
             log_0_epoch=True,
             do_early_stop=False,
-
         )
 
         exp.monitor_epoch({"train": train_set})
@@ -357,7 +354,7 @@ class BaseModel(object):
     ):
         """
         Predict the labels for given input data.
-        
+
         Parameters
         ----------
         X: ndarray
@@ -373,9 +370,7 @@ class BaseModel(object):
         """
         if individual_crops:
             assert self.cropped, "Cropped labels only for cropped decoding"
-        outs_per_trial = self.predict_outs(
-            X=X, individual_crops=individual_crops
-        )
+        outs_per_trial = self.predict_outs(X=X, individual_crops=individual_crops)
 
         pred_labels = [np.argmax(o, axis=0) for o in outs_per_trial]
         if not individual_crops:
@@ -406,9 +401,7 @@ class BaseModel(object):
         all_preds = []
         with th.no_grad():
             dummy_y = np.ones(len(X), dtype=np.int64)
-            for b_X, _ in self.iterator.get_batches(
-                SignalAndTarget(X, dummy_y), False
-            ):
+            for b_X, _ in self.iterator.get_batches(SignalAndTarget(X, dummy_y), False):
                 b_X_var = np_to_var(b_X)
                 if self.cuda:
                     b_X_var = b_X_var.cuda()
@@ -418,9 +411,7 @@ class BaseModel(object):
                 all_preds, self.iterator.input_time_length, X
             )
             if not individual_crops:
-                outs_per_trial = np.array(
-                    [np.mean(o, axis=1) for o in outs_per_trial]
-                )
+                outs_per_trial = np.array([np.mean(o, axis=1) for o in outs_per_trial])
         else:
             outs_per_trial = np.concatenate(all_preds)
         return outs_per_trial

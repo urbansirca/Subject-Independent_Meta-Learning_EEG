@@ -5,7 +5,7 @@ import time
 class MisclassMonitor(object):
     """
     Monitor the examplewise misclassification rate.
-    
+
     Parameters
     ----------
     col_suffix: str, optional
@@ -20,7 +20,9 @@ class MisclassMonitor(object):
         self.col_suffix = col_suffix
         self.threshold_for_binary_case = threshold_for_binary_case
 
-    def monitor_epoch(self,):
+    def monitor_epoch(
+        self,
+    ):
         return
 
     def monitor_set(
@@ -80,9 +82,7 @@ class MisclassMonitor(object):
         return {column_name: float(misclass)}
 
 
-def compute_pred_labels_from_trial_preds(
-    all_preds, threshold_for_binary_case=None
-):
+def compute_pred_labels_from_trial_preds(all_preds, threshold_for_binary_case=None):
     all_pred_labels = []
     for i_batch in range(len(all_preds)):
         preds = all_preds[i_batch]
@@ -114,7 +114,7 @@ class AveragePerClassMisclassMonitor(object):
     """
     Compute average of misclasses per class,
     useful if classes are highly imbalanced.
-    
+
     Parameters
     ----------
     col_suffix: str
@@ -124,7 +124,9 @@ class AveragePerClassMisclassMonitor(object):
     def __init__(self, col_suffix="misclass"):
         self.col_suffix = col_suffix
 
-    def monitor_epoch(self,):
+    def monitor_epoch(
+        self,
+    ):
         return
 
     def monitor_set(
@@ -185,7 +187,9 @@ class LossMonitor(object):
     Monitor the examplewise loss.
     """
 
-    def monitor_epoch(self,):
+    def monitor_epoch(
+        self,
+    ):
         return
 
     def monitor_set(
@@ -197,9 +201,7 @@ class LossMonitor(object):
         all_targets,
         dataset,
     ):
-        batch_weights = np.array(all_batch_sizes) / float(
-            np.sum(all_batch_sizes)
-        )
+        batch_weights = np.array(all_batch_sizes) / float(np.sum(all_batch_sizes))
         loss_per_batch = [np.mean(loss) for loss in all_losses]
         mean_loss = np.sum(batch_weights * loss_per_batch)
         column_name = "{:s}_loss".format(setname)
@@ -209,7 +211,7 @@ class LossMonitor(object):
 class CroppedTrialMisclassMonitor(object):
     """
     Compute trialwise misclasses from predictions for crops.
-    
+
     Parameters
     ----------
     input_time_length: int
@@ -219,7 +221,9 @@ class CroppedTrialMisclassMonitor(object):
     def __init__(self, input_time_length=None):
         self.input_time_length = input_time_length
 
-    def monitor_epoch(self,):
+    def monitor_epoch(
+        self,
+    ):
         return
 
     def monitor_set(
@@ -232,9 +236,7 @@ class CroppedTrialMisclassMonitor(object):
         dataset,
     ):
         """Assuming one hot encoding for now"""
-        assert (
-            self.input_time_length is not None
-        ), "Need to know input time length..."
+        assert self.input_time_length is not None, "Need to know input time length..."
         # First case that each trial only has a single label
         if not hasattr(dataset.y[0], "__len__"):
             all_pred_labels = compute_trial_labels_from_crop_preds(
@@ -243,8 +245,8 @@ class CroppedTrialMisclassMonitor(object):
             assert all_pred_labels.shape == dataset.y.shape
             all_trial_labels = dataset.y
         else:
-            all_trial_labels, all_pred_labels = self._compute_trial_pred_labels_from_cnt_y(
-                dataset, all_preds
+            all_trial_labels, all_pred_labels = (
+                self._compute_trial_pred_labels_from_cnt_y(dataset, all_preds)
             )
         assert all_pred_labels.shape == all_trial_labels.shape
         misclass = 1 - np.mean(all_pred_labels == all_trial_labels)
@@ -255,9 +257,7 @@ class CroppedTrialMisclassMonitor(object):
         preds_per_trial = compute_preds_per_trial_from_crops(
             all_preds, self.input_time_length, dataset.X
         )
-        all_pred_labels = [
-            np.argmax(np.mean(p, axis=1)) for p in preds_per_trial
-        ]
+        all_pred_labels = [np.argmax(np.mean(p, axis=1)) for p in preds_per_trial]
         all_pred_labels = np.array(all_pred_labels)
         assert all_pred_labels.shape == dataset.y.shape
         return all_pred_labels
@@ -314,9 +314,7 @@ def compute_trial_labels_from_crop_preds(all_preds, input_time_length, X):
     preds_per_trial = compute_preds_per_trial_from_crops(
         all_preds, input_time_length, X
     )
-    pred_labels_per_trial = [
-        np.argmax(np.mean(p, axis=1)) for p in preds_per_trial
-    ]
+    pred_labels_per_trial = [np.argmax(np.mean(p, axis=1)) for p in preds_per_trial]
     pred_labels_per_trial = np.array(pred_labels_per_trial)
     return pred_labels_per_trial
 
@@ -324,16 +322,16 @@ def compute_trial_labels_from_crop_preds(all_preds, input_time_length, X):
 def compute_preds_per_trial_from_crops(all_preds, input_time_length, X):
     """
     Compute predictions per trial from predictions for crops.
-    
+
     Parameters
     ----------
     all_preds: list of 2darrays (classes x time)
-        All predictions for the crops. 
+        All predictions for the crops.
     input_time_length: int
         Temporal length of one input to the model.
     X: ndarray
         Input tensor the crops were taken from.
-    
+
     Returns
     -------
     preds_per_trial: list of 2darrays (classes x time)
@@ -349,16 +347,14 @@ def compute_preds_per_trial_from_crops(all_preds, input_time_length, X):
     return preds_per_trial
 
 
-def compute_preds_per_trial_from_n_preds_per_trial(
-    all_preds, n_preds_per_trial
-):
+def compute_preds_per_trial_from_n_preds_per_trial(all_preds, n_preds_per_trial):
     """
     Compute predictions per trial from predictions for crops.
 
     Parameters
     ----------
     all_preds: list of 2darrays (classes x time)
-        All predictions for the crops. 
+        All predictions for the crops.
     input_time_length: int
         Temporal length of one input to the model.
     n_preds_per_trial: list of int
@@ -399,14 +395,16 @@ def compute_preds_per_trial_from_n_preds_per_trial(
 class RuntimeMonitor(object):
     """
     Monitor the runtime of each epoch.
-    
+
     First epoch will have runtime 0.
     """
 
     def __init__(self):
         self.last_call_time = None
 
-    def monitor_epoch(self,):
+    def monitor_epoch(
+        self,
+    ):
         cur_time = time.time()
         if self.last_call_time is None:
             # just in case of first call
@@ -443,7 +441,7 @@ class MetaLearningMonitor(object):
             "meta_support_loss": self.meta_support_loss,
             "meta_query_loss": self.meta_query_loss,
             "train_accuracy": self.train_accuracy,
-            "val_accuracy": self.val_accuracy
+            "val_accuracy": self.val_accuracy,
         }
 
     def monitor_set(
@@ -458,11 +456,11 @@ class MetaLearningMonitor(object):
         # Calculate accuracy for this set
         all_pred_labels = []
         all_target_labels = []
-        
+
         for i_batch in range(len(all_batch_sizes)):
             preds = all_preds[i_batch]
             targets = all_targets[i_batch]
-            
+
             # Handle predictions
             if preds.ndim > 1:
                 only_one_row = preds.shape[0] == 1
@@ -471,7 +469,7 @@ class MetaLearningMonitor(object):
                     pred_labels = pred_labels[None]
             else:
                 pred_labels = preds
-                
+
             # Handle targets
             if targets.ndim > pred_labels.ndim:
                 targets = np.argmax(targets, axis=1)
@@ -482,24 +480,96 @@ class MetaLearningMonitor(object):
                     pred_labels.shape[extra_dim],
                     extra_dim,
                 )
-                
+
             all_pred_labels.extend(pred_labels)
             all_target_labels.extend(targets)
-            
+
         all_pred_labels = np.array(all_pred_labels)
         all_target_labels = np.array(all_target_labels)
-        
+
         accuracy = np.mean(all_target_labels == all_pred_labels)
-        
+
         # Update the appropriate accuracy based on setname
         if setname == "train":
             self.train_accuracy = accuracy
         elif setname == "valid":
             self.val_accuracy = accuracy
-            
+
         return {}
 
     def update_meta_losses(self, meta_support_loss, meta_query_loss):
         """Update meta-learning losses from the training loop."""
         self.meta_support_loss = meta_support_loss
         self.meta_query_loss = meta_query_loss
+
+
+class PerSubjectMonitor(object):
+    """Monitor to track per-subject metrics."""
+
+    def __init__(self):
+        self.epoch_metrics = {}
+
+    def monitor_epoch(self):
+        """Called at the end of each epoch."""
+        return self.epoch_metrics
+
+    def monitor_set(
+        self, setname, all_preds, all_losses, all_batch_sizes, all_targets, dataset
+    ):
+        """Monitor a specific dataset (train/valid/test)."""
+        if setname != "valid":  # Only track validation set for now
+            return None
+
+        subject_ids = self._extract_subject_ids(dataset)
+
+        if subject_ids is None:
+            return None
+
+        # Compute per-subject metrics
+        per_subject_metrics = {}
+        for subject_id in set(subject_ids):
+            # Get predictions and targets for this subject
+            subject_mask = [i for i, sid in enumerate(subject_ids) if sid == subject_id]
+            if not subject_mask:
+                continue
+
+            subject_preds = all_preds[0][subject_mask]  # Remove batch dimension
+            subject_targets = all_targets[subject_mask]
+
+            # Compute accuracy for this subject
+            subject_accuracy = self._compute_accuracy(subject_preds, subject_targets)
+            per_subject_metrics[f"valid_accuracy/subject_{subject_id}"] = (
+                subject_accuracy
+            )
+
+        # Store for this epoch
+        self.epoch_metrics.update(per_subject_metrics)
+        return per_subject_metrics
+
+    def _extract_subject_ids(self, dataset):
+        """Extract subject IDs from dataset. Modify this based on your data structure."""
+
+        if hasattr(dataset, "X") and len(dataset.X) > 0:
+            # Assuming 400 samples per subject, you could infer subject IDs
+            n_samples = len(dataset.X)
+            n_subjects = n_samples // 400
+            if n_samples % 400 == 0:
+                return [i for i in range(n_subjects) for _ in range(400)]
+
+        return None
+
+    def _compute_accuracy(self, predictions, targets):
+        """Compute accuracy from predictions and targets."""
+        if len(predictions) == 0:
+            return 0.0
+
+        # Convert predictions to class labels
+        if predictions.ndim > 1:
+            pred_labels = np.argmax(predictions, axis=1)
+        else:
+            pred_labels = predictions
+
+        # Compute accuracy
+        correct = np.sum(pred_labels == targets)
+        accuracy = correct / len(targets)
+        return accuracy
