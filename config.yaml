@@ -5,17 +5,17 @@ experiment:
   train_epoch: 50
   learning_rate: 0.002
   weight_decay: 0.0025
-  scheduler: "cosine"
+  scheduler: True
 
   meta_learning_rate: 0.004
   n_tasks_per_meta_batch: 20 # Subjects for maml
-  inner_steps: 20
-  n_folds: 40 #LOSO
-  kfold: 4 #CV
+  inner_steps: 5
+  n_folds: 10 #LOSO
+  kfold: 3 #CV
   gpu: 0
   log_timing: true
-  run_after_early_stop: true
+  run_after_early_stop: false
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
-  tensorboard_path: "runs"
+  tensorboard_path: "runs3"

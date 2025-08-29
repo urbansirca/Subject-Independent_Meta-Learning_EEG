@@ -226,99 +226,100 @@ def get_multi_data(subjs):
 
 
 for loso_fold in range(n_folds):
-    for cv_fold in range(kfold):
-        outpath = os.path.join(experiment_dir, f"fold_{loso_fold}")
-        os.makedirs(outpath, exist_ok=True)
-        print(f"outpath to save: {outpath}")
+    
+    outpath = os.path.join(experiment_dir, f"fold_{loso_fold}")
+    os.makedirs(outpath, exist_ok=True)
+    print(f"outpath to save: {outpath}")
 
-        test_subj = subjs[loso_fold]
-        cv_set = np.array(subjs[loso_fold + 1 :] + subjs[:loso_fold])
+    test_subj = subjs[loso_fold]
+    cv_set = np.array(subjs[loso_fold + 1 :] + subjs[:loso_fold])
 
-        print("=" * 40)
-        print(f"Fold {loso_fold+1} of {n_folds}")
-        print(f"Test subject: {test_subj}")
-        print(f"CV set: {cv_set}")
-        print("=" * 40)
+    print("=" * 40)
+    print(f"LOSO Fold {loso_fold+1} of {n_folds}")
+    print(f"Test subject: {test_subj}")
+    print(f"CV set: {cv_set}")
+    print("=" * 40)
 
-        kf = KFold(n_splits=kfold)
+  
 
-        cv_loss = []
-        for cv_index, (train_index, test_index) in enumerate(kf.split(cv_set)):
 
-            train_subjs = cv_set[train_index]
-            valid_subjs = cv_set[test_index]
-            X_train, Y_train = get_multi_data(train_subjs)
-            X_val, Y_val = get_multi_data(valid_subjs)
-            X_test, Y_test = get_data(test_subj)
-            train_set = SignalAndTarget(X_train, y=Y_train)
-            valid_set = SignalAndTarget(X_val, y=Y_val)
-            test_set = SignalAndTarget(X_test[300:], y=Y_test[300:])
-            n_classes = 2
-            in_chans = train_set.X.shape[1]
+    cv_loss = []
+    for cv_index, (train_index, test_index) in enumerate(kf.split(cv_set)):
 
-            print(f"CV  {cv_index+1} out of {kfold}")
-            print(f"Train subject indices: {train_index}")
-            print(f"Validation subject indices: {test_index}")
+        train_subjs = cv_set[train_index]
+        valid_subjs = cv_set[test_index]
+        X_train, Y_train = get_multi_data(train_subjs)
+        X_val, Y_val = get_multi_data(valid_subjs)
+        X_test, Y_test = get_data(test_subj)
+        train_set = SignalAndTarget(X_train, y=Y_train)
+        valid_set = SignalAndTarget(X_val, y=Y_val)
+        test_set = SignalAndTarget(X_test[300:], y=Y_test[300:]) #TODO: why 300?
+        n_classes = 2
+        in_chans = train_set.X.shape[1]
 
-            # final_conv_length = auto ensures we only get a single output in the time dimension
-            model = Deep5Net(
-                in_chans=in_chans,
-                n_classes=n_classes,
-                input_time_length=train_set.X.shape[2],
-                final_conv_length="auto",
-            ).cuda()
+        print(f"CV  {cv_index+1} out of {kfold}")
+        print(f"Train subjects: {train_subjs}")
+        print(f"Validation subjects: {valid_subjs}")
 
-            optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
-            model.compile(
-                loss=F.nll_loss,
-                optimizer=optimizer,
-                iterator_seed=1,
+        # final_conv_length = auto ensures we only get a single output in the time dimension
+        model = Deep5Net(
+            in_chans=in_chans,
+            n_classes=n_classes,
+            input_time_length=train_set.X.shape[2],
+            final_conv_length="auto",
+        ).cuda()
+
+        optimizer = AdamW(model.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        model.compile(
+            loss=F.nll_loss,
+            optimizer=optimizer,
+            iterator_seed=1,
+        )
+
+        # Fit the base model for transfer learning, use early stopping as a hack to remember the model
+        exp = model.fit(
+            train_set.X,
+            train_set.y,
+            epochs=TRAIN_EPOCH,
+            batch_size=BATCH_SIZE,
+            scheduler=SCHEDULER,
+            validation_data=(valid_set.X, valid_set.y),
+            remember_best_column="valid_loss",
+            meta=meta,
+            inner_lr=META_LR,
+            log_timing=log_timing,
+            n_tasks_per_meta_batch=N_TASKS_PER_META_BATCH,
+            inner_steps=N_INNER_STEPS,
+            fold_info={"loso_fold": loso_fold, "cv_fold": cv_index},
+            run_after_early_stop=run_after_early_stop,
+        )
+
+        rememberer = exp.rememberer
+        base_model_param = {
+            "epoch": rememberer.best_epoch,
+            "model_state_dict": rememberer.model_state_dict,
+            "optimizer_state_dict": rememberer.optimizer_state_dict,
+            "loss": rememberer.lowest_val,
+        }
+        torch.save(
+            base_model_param,
+            pjoin(outpath, "model_f{}_cv{}.pt".format(loso_fold, cv_index)),
+        )
+        model.epochs_df.to_csv(
+            pjoin(
+                outpath, "original_epochs_f{}_cv{}.csv".format(loso_fold, cv_index)
             )
+        )
+        cv_loss.append(rememberer.lowest_val)
 
-            # Fit the base model for transfer learning, use early stopping as a hack to remember the model
-            exp = model.fit(
-                train_set.X,
-                train_set.y,
-                epochs=TRAIN_EPOCH,
-                batch_size=BATCH_SIZE,
-                scheduler=SCHEDULER,
-                validation_data=(valid_set.X, valid_set.y),
-                remember_best_column="valid_loss",
-                meta=meta,
-                inner_lr=META_LR,
-                log_timing=log_timing,
-                n_tasks_per_meta_batch=N_TASKS_PER_META_BATCH,
-                inner_steps=N_INNER_STEPS,
-                fold_info={"loso_fold": loso_fold, "cv_fold": cv_index},
-                run_after_early_stop=run_after_early_stop,
-            )
-
-            rememberer = exp.rememberer
-            base_model_param = {
-                "epoch": rememberer.best_epoch,
-                "model_state_dict": rememberer.model_state_dict,
-                "optimizer_state_dict": rememberer.optimizer_state_dict,
-                "loss": rememberer.lowest_val,
-            }
-            torch.save(
-                base_model_param,
-                pjoin(outpath, "model_f{}_cv{}.pt".format(loso_fold, cv_index)),
-            )
-            model.epochs_df.to_csv(
-                pjoin(
-                    outpath, "original_epochs_f{}_cv{}.csv".format(loso_fold, cv_index)
-                )
-            )
-            cv_loss.append(rememberer.lowest_val)
-
-            test_loss = model.evaluate(test_set.X, test_set.y)
-            with open(
-                pjoin(
-                    outpath,
-                    "original_test_base_s{}_f{}_cv{}.json".format(
-                        test_subj, loso_fold, cv_index
-                    ),
+        test_loss = model.evaluate(test_set.X, test_set.y)
+        with open(
+            pjoin(
+                outpath,
+                "original_test_base_s{}_f{}_cv{}.json".format(
+                    test_subj, loso_fold, cv_index
                 ),
-                "w",
-            ) as f:
-                json.dump(test_loss, f)
+            ),
+            "w",
+        ) as f:
+            json.dump(test_loss, f)
