@@ -846,6 +846,13 @@ class Experiment(object):
         """
         Print monitoring values for this epoch.
         """
+        # Add the CURRENT scheduled learning rate to the epochs dataframe
+        current_lr = self.optimizer.param_groups[0]['lr']
+        self.epochs_df.loc[len(self.epochs_df)-1, 'scheduled_learning_rate'] = current_lr
+        
+        # Add meta learning rate if available
+        if hasattr(self, 'inner_lr'):
+            self.epochs_df.loc[len(self.epochs_df)-1, 'meta_learning_rate'] = self.inner_lr
 
         for logger in self.loggers:
             print(f"Calling logger: {type(logger).__name__}")
