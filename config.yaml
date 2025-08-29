@@ -1,16 +1,16 @@
 # config.yaml
 experiment:
   meta: true
-  batch_size: 128
-  train_epoch: 50
-  learning_rate: 0.002
+  batch_size: 1024
+  train_epoch: 400
+  learning_rate: 0.01
   weight_decay: 0.0025
-  scheduler: True
+  scheduler: "cosine"
 
-  meta_learning_rate: 0.004
+  meta_learning_rate: 0.01
   n_tasks_per_meta_batch: 20 # Subjects for maml
   inner_steps: 5
-  n_folds: 10 #LOSO
+  n_folds: 3 #LOSO
   kfold: 3 #CV
   gpu: 0
   log_timing: true
@@ -18,4 +18,4 @@ experiment:
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
-  tensorboard_path: "runs3"
+  tensorboard_path: "400_epochs_no_CV"

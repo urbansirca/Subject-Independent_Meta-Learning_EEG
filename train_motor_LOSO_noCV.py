@@ -189,11 +189,15 @@ experiment_dir = final["outpath"]
 os.makedirs(experiment_dir, exist_ok=True)
 # make a subfolder from hyperparameter values and date
 subfolder = (
-    f"experiment_epochs_{TRAIN_EPOCH}_{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
+    f"experiment_epochs_NO_CV_{TRAIN_EPOCH}_{datetime.now().strftime('%Y-%m-%d-%H-%M')}"
 )
 experiment_dir = os.path.join(experiment_dir, subfolder)
 os.makedirs(experiment_dir, exist_ok=True)
 
+
+# save the config
+with open(os.path.join(experiment_dir, "config.yaml"), "w") as f:
+    yaml.dump(final, f)
 
 torch.cuda.set_device(final["gpu"])
 torch.manual_seed(0)

@@ -230,6 +230,8 @@ class BaseModel(object):
             n_updates_per_epoch = sum(
                 [1 for _ in self.iterator.get_batches(train_set, shuffle=True)]
             )
+            print("N updates per epoch: ", n_updates_per_epoch)
+
             n_updates_per_period = n_updates_per_epoch * epochs
             if scheduler == "cosine":
                 scheduler = CosineAnnealing(n_updates_per_period)
