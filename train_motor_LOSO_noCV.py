@@ -195,11 +195,11 @@ experiment_dir = os.path.join(experiment_dir, subfolder)
 os.makedirs(experiment_dir, exist_ok=True)
 
 
-torch.cuda.set_device(final["gpu"])
-torch.manual_seed(0)
-torch.cuda.manual_seed_all(0)
-np.random.seed(0)
-torch.backends.cudnn.deterministic = True
+# torch.cuda.set_device(final["gpu"])
+# torch.manual_seed(0)
+# torch.cuda.manual_seed_all(0)
+# np.random.seed(0)
+# torch.backends.cudnn.deterministic = True
 
 
 # print all the arguments
@@ -236,8 +236,10 @@ for loso_fold in range(n_folds):
     cv_set = np.array(subjs[loso_fold + 1 :] + subjs[:loso_fold])
 
     # get 90% of the data for training and 10% for validation
-    train_subjs = cv_set[: int(len(cv_set) * 0.95)]
-    valid_subjs = cv_set[int(len(cv_set) * 0.95) :]
+
+    
+    train_subjs = np.random.choice(cv_set, size=int(len(cv_set) * 0.95), replace=False).tolist()
+    valid_subjs = np.setdiff1d(cv_set, train_subjs).tolist()
     X_train, Y_train = get_multi_data(train_subjs)
     X_val, Y_val = get_multi_data(valid_subjs)
     X_test, Y_test = get_data(test_subj)
