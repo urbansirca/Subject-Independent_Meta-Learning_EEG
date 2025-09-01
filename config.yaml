@@ -11,6 +11,7 @@ experiment:
   n_tasks_per_meta_batch: 20 # Subjects for maml
   inner_steps: 5
   n_folds: 54 #LOSO
+  from_to_folds: [44, 54] # from 44 to 4
   kfold: 3 #CV
   gpu: 0
   log_timing: false
@@ -18,4 +19,4 @@ experiment:
   
   datapath: "data/preprocessed_KU_eeg/KU_mi_smt.h5"
   outpath: "results/" # saved to subfolders
-  tensorboard_path: "full_run"
+  tensorboard_path: "tensorboard_logs"

@@ -33,7 +33,6 @@ from motor_braindecode.datautil.signal_target import SignalAndTarget
 # from braindecode.models.deep4 import Deep4Net
 from motor_braindecode.torch_ext.optimizers import AdamW
 from motor_braindecode.torch_ext.util import set_random_seeds
-from sklearn.model_selection import KFold
 from torch import nn
 
 ## MAML EEG
@@ -82,7 +81,6 @@ parser.add_argument(
     "--run_after_early_stop", help="Run after early stop", action="store_true"
 )
 
-
 args = parser.parse_args()
 
 # ---- Merge CLI args with config ----
@@ -105,6 +103,7 @@ final = {
     "log_timing": args.log_timing or config["log_timing"],
     "scheduler": config["scheduler"],
     "run_after_early_stop": args.run_after_early_stop or config["run_after_early_stop"],
+    "from_to_folds": config["from_to_folds"],
 }
 
 
@@ -123,6 +122,10 @@ meta = final["meta"]
 log_timing = final["log_timing"]
 n_folds = final["n_folds"]  # number of subjects for training and testing LOSO
 kfold = final["kfold"]  # number of folds for cross-validation
+
+from_to_folds = final["from_to_folds"]
+from_fold = from_to_folds[0]
+to_fold = from_to_folds[1]
 
 # Randomly shuffled subject.
 subjs = [
@@ -226,7 +229,7 @@ def get_multi_data(subjs):
     return X, Y
 
 
-for loso_fold in range(n_folds):
+for loso_fold in range(from_fold, to_fold):
 
     outpath = os.path.join(experiment_dir, f"fold_{loso_fold}")
     os.makedirs(outpath, exist_ok=True)
@@ -237,8 +240,9 @@ for loso_fold in range(n_folds):
 
     # get 90% of the data for training and 10% for validation
 
-    
-    train_subjs = np.random.choice(cv_set, size=int(len(cv_set) * 0.95), replace=False).tolist()
+    train_subjs = np.random.choice(
+        cv_set, size=int(len(cv_set) * 0.95), replace=False
+    ).tolist()
     valid_subjs = np.setdiff1d(cv_set, train_subjs).tolist()
     X_train, Y_train = get_multi_data(train_subjs)
     X_val, Y_val = get_multi_data(valid_subjs)
